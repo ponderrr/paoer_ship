@@ -13,9 +13,6 @@ class DisplayMock(DisplayInterface):
         self.font = None
         self.status_message = "Welcome to Pao'er Ship!"
 
-    # In src/hardware/display_mock.py
-# Add this method to your existing DisplayMock class
-
     def _draw_cursor(self, x, y):
         """Draw the cursor at the specified grid position"""
         cursor_rect = pygame.Rect(
@@ -32,7 +29,7 @@ class DisplayMock(DisplayInterface):
         pygame.display.set_caption("Pao'er Ship - Development View")
         self.font = pygame.font.SysFont('Arial', 24)
 
-    def update(self, board_state):
+    def update(self, board_state, show_grid=True):
         if self.screen is None:
             return
 
@@ -48,7 +45,7 @@ class DisplayMock(DisplayInterface):
         self._draw_control_buttons()
         
         # Draw game grid
-        self._draw_game_grid(board_state)
+        self._draw_game_grid(board_state, show_grid)
         
         pygame.display.flip()
 
@@ -101,7 +98,7 @@ class DisplayMock(DisplayInterface):
             text_rect = text.get_rect(center=(pos[0], pos[1] + 40))
             self.screen.blit(text, text_rect)
 
-    def _draw_game_grid(self, board_state):
+    def _draw_game_grid(self, board_state, show_grid=True):
         for y in range(len(board_state)):
             for x in range(len(board_state[0])):
                 color = self._get_cell_color(board_state[y][x])
@@ -112,6 +109,10 @@ class DisplayMock(DisplayInterface):
                     self.cell_size - 2
                 )
                 pygame.draw.rect(self.screen, color, rect)
+                
+                # Draw grid lines if enabled
+                if show_grid:
+                    pygame.draw.rect(self.screen, (50, 50, 50), rect, 1)
 
     def _get_cell_color(self, cell_value):
         colors = {
