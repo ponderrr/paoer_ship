@@ -1,27 +1,21 @@
-# src/hardware/display_mock.py
-
-import pygame
-from .display_interface import DisplayInterface
-
-class DisplayMock(DisplayInterface):
+class DisplayMock:
     def __init__(self, width=800, height=600):
         self.width = width
         self.height = height
         self.cell_size = 40
         self.screen = None
-        
+
     def init_display(self):
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("Pao'er Ship - Development View")
 
-    def update(self, board_state):
+    def update(self, board_state, show_grid=True):  # ✅ Add show_grid parameter
         if self.screen is None:
             return
 
         self.screen.fill((0, 0, 0))  # Black background
         
-        # Draw grid
         for y in range(len(board_state)):
             for x in range(len(board_state[0])):
                 color = self._get_cell_color(board_state[y][x])
@@ -32,7 +26,11 @@ class DisplayMock(DisplayInterface):
                     self.cell_size - 2
                 )
                 pygame.draw.rect(self.screen, color, rect)
-        
+
+                # ✅ Draw grid lines if enabled
+                if show_grid:
+                    pygame.draw.rect(self.screen, (50, 50, 50), rect, 1)
+
         pygame.display.flip()
 
     def _get_cell_color(self, cell_value):
