@@ -17,6 +17,11 @@ class GameBoard:
         self.pao_mode = False
         self.ai_targets = []
 
+    def reset_board(self):
+        """Clear the board and remove all ships."""
+        self.board = np.zeros((self.size, self.size), dtype=int)
+        self.ships = []
+
     def place_ship(self, x, y, length, horizontal=True):
         """
         Places a ship on the board and stores it in self.ships.
