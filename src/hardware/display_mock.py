@@ -37,7 +37,7 @@ class DisplayMock(DisplayInterface):
     def _draw_cursor(self, x, y):
         """Draw the cursor at the specified grid position."""
         cursor_rect = pygame.Rect(
-            x * self.cell_size + self.grid_offset_x,  # Swapped x and y to fix arrow key issue
+            x * self.cell_size + self.grid_offset_x,  
             y * self.cell_size + self.grid_offset_y,
             self.cell_size - 2,
             self.cell_size - 2

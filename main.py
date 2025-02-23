@@ -422,9 +422,11 @@ def game_loop():
             hit, sunk = board.fire(x, y)
             
             if hit:
-                display.set_status(f"HIT at {chr(65 + x)}{y + 1}!")
+                display.set_status(f"HIT at {chr(65 + y)}{x + 1}")  # Swap x and y if needed
+
             else:
-                display.set_status(f"Miss at {chr(65 + x)}{y + 1}")
+                display.set_status(f"Miss at {chr(65 + y)}{x + 1}")  # Swap x and y if needed
+
 
             last_fire_time = current_time  # Reset fire delay
 
