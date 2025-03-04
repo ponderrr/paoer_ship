@@ -1,11 +1,24 @@
 import pygame
 import sys
 import random
+import math
+import os
+
 from src.board.game_board import GameBoard
 from src.hardware.display_mock import DisplayMock
 from src.input.button_handler import ButtonHandler
 from src.cursor import GameCursor
-import math
+
+# Import GPIO implementation based on platform
+try:
+    import RPi.GPIO as GPIO
+    from src.hardware.gpio_rpi import GPIORPI as GPIOImpl
+    IS_RASPBERRY_PI = True
+    print("Running on Raspberry Pi - using GPIO pins")
+except (ImportError, RuntimeError):
+    from src.hardware.gpio_mock import GPIOMock as GPIOImpl
+    IS_RASPBERRY_PI = False
+    print("Not running on Raspberry Pi - using keyboard input")
 
 # Initialize Pygame
 pygame.init()
@@ -34,6 +47,10 @@ grid_enabled = True
 pygame.font.init()
 title_font = pygame.font.Font(None, 70)
 button_font = pygame.font.Font(None, 40)
+
+# Initialize GPIO
+gpio = GPIOImpl()
+gpio.setup()
 
 # --- Fade Transition Helpers (250ms duration) ---
 def fade_out(screen, duration=250):
@@ -133,13 +150,18 @@ class Button:
         self.hover_color = LIGHT_BLUE
         self.current_color = self.base_color
         self.hovered = False
+        self.selected = False  # For hardware button navigation
         self.scale = 1.0
         self.animation_speed = 0.1  # For scaling effect
         self.text_scroll_offset = 0  # For marquee effect
 
     def update(self):
-        target_scale = 1.1 if self.hovered else 1.0
+        # Scale based on hover/selection state
+        target_scale = 1.1 if (self.hovered or self.selected) else 1.0
         self.scale += (target_scale - self.scale) * self.animation_speed
+
+        # Use hover color if selected or hovered
+        self.current_color = self.hover_color if (self.selected or self.hovered) else self.base_color
 
         # Check if the text is too wide for the scaled button.
         text_width, _ = button_font.size(self.text)
@@ -181,10 +203,8 @@ class Button:
     def check_hover(self, pos):
         if self.rect.collidepoint(pos):
             self.hovered = True
-            self.current_color = self.hover_color
         else:
             self.hovered = False
-            self.current_color = self.base_color
 
     def check_click(self, pos):
         if self.rect.collidepoint(pos):
@@ -216,9 +236,11 @@ settings = default_settings.copy()
 
 # --- Settings Menu as a Dedicated Class (without Board Theme) ---
 class SettingsMenu:
-    def __init__(self, screen):
+    def __init__(self, screen, button_handler):
         self.screen = screen
         self.clock = pygame.time.Clock()
+        self.button_handler = button_handler
+        self.current_selection = 0  # Currently selected button
         self.create_buttons()
         self.frame_count = 0  # For wave animation
 
@@ -234,9 +256,11 @@ class SettingsMenu:
             Button(center_x, start_y + spacing, button_width, button_height, f"Difficulty: {settings['difficulty']}", lambda: self.toggle("difficulty")),
             Button(center_x, start_y + 2 * spacing, button_width, button_height, f"AI Animations: {'ON' if settings['ai_animations'] else 'OFF'}", lambda: self.toggle("ai_animations")),
             Button(center_x, start_y + 3 * spacing, button_width, button_height, f"Grid Lines: {'ON' if settings['grid'] else 'OFF'}", lambda: self.toggle("grid")),
-            Button(center_x, start_y + 4 * spacing, button_width, button_height, f"Fullscreen: {'ON' if settings['fullscreen'] else 'OFF'}", lambda: self.toggle_fullscreen()),  # FIXED: Added missing method
+            Button(center_x, start_y + 4 * spacing, button_width, button_height, f"Fullscreen: {'ON' if settings['fullscreen'] else 'OFF'}", lambda: self.toggle_fullscreen()),
             Button(center_x, start_y + 5 * spacing, button_width, button_height, "Back", self.back)
         ]
+        # Set first button as selected
+        self.buttons[0].selected = True
 
     def toggle(self, key):
         """Toggle game settings like sound, difficulty, AI animations, etc."""
@@ -298,11 +322,7 @@ class SettingsMenu:
             draw_background()
             self.draw_wavy_settings_title()
 
-            for button in self.buttons:
-                button.check_hover(pygame.mouse.get_pos())
-                button.update()
-                button.draw(self.screen)
-
+            # Get keyboard/GPIO input
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -312,6 +332,44 @@ class SettingsMenu:
                         button.check_click(pygame.mouse.get_pos())
                 elif event.type == pygame.MOUSEWHEEL:
                     pass  # Ignore scroll wheel input
+            
+            # Update button hover based on mouse position
+            mouse_pos = pygame.mouse.get_pos()
+            for i, button in enumerate(self.buttons):
+                button.check_hover(mouse_pos)
+            
+            # Handle GPIO/keyboard button navigation
+            actions = self.button_handler.update()
+            
+            if actions['menu_up']:
+                # Clear all selections
+                for button in self.buttons:
+                    button.selected = False
+                
+                # Move selection up
+                self.current_selection = (self.current_selection - 1) % len(self.buttons)
+                self.buttons[self.current_selection].selected = True
+                
+            if actions['menu_down']:
+                # Clear all selections
+                for button in self.buttons:
+                    button.selected = False
+                
+                # Move selection down
+                self.current_selection = (self.current_selection + 1) % len(self.buttons)
+                self.buttons[self.current_selection].selected = True
+            
+            if actions['menu_select']:
+                # Activate the selected button
+                self.buttons[self.current_selection].action()
+            
+            if actions['menu_back']:
+                self.back()
+
+            # Update and draw all buttons
+            for button in self.buttons:
+                button.update()
+                button.draw(self.screen)
 
             pygame.display.flip()
             self.frame_count += 1  # Increase frame count for continuous animation
@@ -319,7 +377,7 @@ class SettingsMenu:
 
 def settings_menu():
     fade_out(screen, duration=250)
-    menu = SettingsMenu(screen)
+    menu = SettingsMenu(screen, button_handler)
     menu.run()
     fade_in(screen, duration=250)
     main_menu()
@@ -329,9 +387,10 @@ def start_game():
     game_loop()
 
 def quit_game():
+    # Clean up GPIO first
+    gpio.cleanup()
     pygame.quit()
     sys.exit()
-
 
 def draw_wavy_title(text, font, y_offset, frame_count):
     """Draws text with a wavy animation effect"""
@@ -361,9 +420,16 @@ def main_menu():
         Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_menu),
         Button(center_x, start_y + 2 * spacing, button_width, button_height, "Quit", quit_game)
     ]
+    
+    # Set first button as selected
+    current_selection = 0
+    buttons[current_selection].selected = True
 
     clock = pygame.time.Clock()
     frame_count = 0  # Track animation frames
+
+    # Initialize button handler with GPIO
+    button_handler = ButtonHandler(gpio)
 
     while True:
         draw_background()
@@ -371,128 +437,40 @@ def main_menu():
         # Draw the animated wavy title
         draw_wavy_title("Pao'er Ship", title_font, 150, frame_count)
         
-        for button in buttons:
-            button.check_hover(pygame.mouse.get_pos())
-            button.update()
-            button.draw(screen)
-
+        # Process events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 quit_game()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 for button in buttons:
                     button.check_click(pygame.mouse.get_pos())
-
-        pygame.display.flip()
-        frame_count += 1  # Increase frame count for continuous animation
-        clock.tick(60)  # Maintain 60 FPS
-
-def game_loop():
-    """Single-player game loop where the player fires at ships until all are hit."""
-    board = GameBoard()
-    display = DisplayMock()
-    button_handler = ButtonHandler()
-
-    display.init_display()
-
-    # Place some ships manually for the mockup
-    board.place_ship(2, 3, 3, horizontal=True)
-    board.place_ship(5, 5, 4, horizontal=False)
-
-    running = True
-    clock = pygame.time.Clock()
-    last_fire_time = 0
-    fire_delay = 250  # Delay between shots
-
-    while running:
-        current_time = pygame.time.get_ticks()
         
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                pygame.quit()
-                sys.exit()
-
-        keys = pygame.key.get_pressed()
-        actions = button_handler.update(keys)
-
-        # Player fires a shot
-        if actions['fired'] and current_time - last_fire_time > fire_delay:
-            x, y = actions['position']
-            hit, sunk = board.fire(x, y)
+        # Update button hover based on mouse position
+        mouse_pos = pygame.mouse.get_pos()
+        for button in buttons:
+            button.check_hover(mouse_pos)
             
-            if hit:
-                display.set_status(f"HIT at {chr(65 + y)}{x + 1}")  # Swap x and y if needed
-
-            else:
-                display.set_status(f"Miss at {chr(65 + y)}{x + 1}")  # Swap x and y if needed
-
-
-            last_fire_time = current_time  # Reset fire delay
-
-            # Check if the game is over
-            if board.check_all_sunk():
-                game_over_screen()
-                return  # Exit game loop
-
-        # Update display with the board state
-        display.update(board.get_display_state(), show_grid=settings["grid"])
-        display._draw_cursor(button_handler.cursor_x, button_handler.cursor_y)
-        pygame.display.flip()
-        clock.tick(60)
-
-def game_over_screen():
-    screen.fill(BLACK)
-
-    # Render text and center it
-    game_over_text = title_font.render("Game Over! You Win!", True, WHITE)
-    text_rect = game_over_text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
-    screen.blit(game_over_text, text_rect)
-
-    pygame.display.flip()
-
-    # Particle effect parameters
-    particles = []
-    num_particles = 100  # Adjust for more/less particles
-    for _ in range(num_particles):
-        particles.append({
-            "x": WIDTH // 2,
-            "y": HEIGHT // 2,
-            "dx": random.uniform(-3, 3),
-            "dy": random.uniform(-3, 3),
-            "size": random.randint(2, 5),
-            "alpha": 255
-        })
-
-    clock = pygame.time.Clock()
-    start_time = pygame.time.get_ticks()
-
-    while pygame.time.get_ticks() - start_time < 3000:  # 3 seconds
-        screen.fill(BLACK)
-        screen.blit(game_over_text, text_rect)
-
-        # Update and draw particles
-        for particle in particles:
-            particle["x"] += particle["dx"]
-            particle["y"] += particle["dy"]
-            particle["alpha"] -= 2  # Gradually fade
-            particle["alpha"] = max(0, particle["alpha"])
-
-            # Create fading particle effect
-            particle_surface = pygame.Surface((particle["size"], particle["size"]), pygame.SRCALPHA)
-            pygame.draw.circle(particle_surface, (255, 255, 255, particle["alpha"]), 
-                               (particle["size"] // 2, particle["size"] // 2), particle["size"] // 2)
-            screen.blit(particle_surface, (particle["x"], particle["y"]))
-
-        pygame.display.flip()
-        clock.tick(60)  # Keep animation smooth
-
-    main_menu()  # Return to main menu after effect
-
-
-def main():
-    init_particles(150)
-    main_menu()
-
-if __name__ == "__main__":
-    main()
+        # Handle GPIO/keyboard button navigation
+        actions = button_handler.update()
+        
+        if actions['menu_up']:
+            # Clear all selections
+            for button in buttons:
+                button.selected = False
+            
+            # Move selection up
+            current_selection = (current_selection - 1) % len(buttons)
+            buttons[current_selection].selected = True
+            
+        if actions['menu_down']:
+            # Clear all selections
+            for button in buttons:
+                button.selected = False
+            
+            # Move selection down
+            current_selection = (current_selection + 1) % len(buttons)
+            buttons[current_selection].selected = True
+        
+        if actions['menu_select']:
+            # Activate the selected button
+            buttons[current_selection].action()
