@@ -1,4 +1,3 @@
-# src/hardware/gpio_mock.py
 import pygame
 from .gpio_interface import GPIOInterface
 
@@ -6,6 +5,16 @@ class GPIOMock(GPIOInterface):
     def __init__(self):
         """Mock implementation that uses keyboard input as a substitute for GPIO buttons"""
         self.button_states = {
+            'up': False,
+            'down': False,
+            'left': False,
+            'right': False,
+            'fire': False,
+            'mode': False
+        }
+        
+        # Store last key states to detect changes (key press events)
+        self.last_key_states = {
             'up': False,
             'down': False,
             'left': False,
@@ -32,12 +41,24 @@ class GPIOMock(GPIOInterface):
         """
         keys = pygame.key.get_pressed()
         
-        # Map keyboard keys to buttons
-        self.button_states['up'] = keys[pygame.K_UP]
-        self.button_states['down'] = keys[pygame.K_DOWN]
-        self.button_states['left'] = keys[pygame.K_LEFT]
-        self.button_states['right'] = keys[pygame.K_RIGHT]
-        self.button_states['fire'] = keys[pygame.K_SPACE]
-        self.button_states['mode'] = keys[pygame.K_TAB]
+        # Get raw key states
+        current_key_states = {
+            'up': keys[pygame.K_UP],
+            'down': keys[pygame.K_DOWN],
+            'left': keys[pygame.K_LEFT],
+            'right': keys[pygame.K_RIGHT],
+            'fire': keys[pygame.K_SPACE],
+            'mode': keys[pygame.K_TAB]
+        }
+        
+        # Only register a press when the state changes from released to pressed
+        for button in self.button_states:
+            if current_key_states[button] and not self.last_key_states[button]:
+                self.button_states[button] = True
+            elif not current_key_states[button]:
+                self.button_states[button] = False
+                
+        # Update last key states
+        self.last_key_states = current_key_states.copy()
         
         return self.button_states.copy()

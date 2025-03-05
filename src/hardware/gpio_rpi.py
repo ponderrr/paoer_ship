@@ -1,11 +1,10 @@
-# src/hardware/gpio_rpi.py
-import RPi.GPIO as GPIO
+import gpiod
 import time
 from .gpio_interface import GPIOInterface
 
 class GPIORPI(GPIOInterface):
     def __init__(self):
-        # Define GPIO pins for buttons
+        # Define GPIO pins for buttons (BCM numbering)
         self.PIN_UP = 17    # Pin 11
         self.PIN_DOWN = 27  # Pin 13
         self.PIN_LEFT = 22  # Pin 15
@@ -15,6 +14,16 @@ class GPIORPI(GPIOInterface):
         
         # Button state variables with debounce protection
         self.button_states = {
+            'up': False,
+            'down': False,
+            'left': False,
+            'right': False,
+            'fire': False,
+            'mode': False
+        }
+        
+        # Last button state to detect changes
+        self.last_button_raw_states = {
             'up': False,
             'down': False,
             'left': False,
@@ -33,25 +42,60 @@ class GPIORPI(GPIOInterface):
             'fire': 0,
             'mode': 0
         }
+        
+        # GPIO objects
+        self.chip = None
+        self.lines = {}
 
     def setup(self):
         """Initialize GPIO pins for button input"""
-        # Set GPIO mode
-        GPIO.setmode(GPIO.BCM)
-        
-        # Set up input pins with pull-up resistors
-        GPIO.setup(self.PIN_UP, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.PIN_DOWN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.PIN_LEFT, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.PIN_RIGHT, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.PIN_FIRE, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.PIN_MODE, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        
-        print("GPIO pins initialized for button input")
+        try:
+            # Try to open the GPIO chip for Pi 5 or fall back to Pi 4 and earlier
+            try:
+                self.chip = gpiod.Chip("gpiochip4")  # Raspberry Pi 5
+                print("Using gpiochip4 for Raspberry Pi 5")
+            except:
+                self.chip = gpiod.Chip("gpiochip0")  # Earlier Raspberry Pi models
+                print("Using gpiochip0 for Raspberry Pi")
+            
+            # Pin to button name mapping
+            pin_button_map = {
+                self.PIN_UP: 'up',
+                self.PIN_DOWN: 'down',
+                self.PIN_LEFT: 'left',
+                self.PIN_RIGHT: 'right',
+                self.PIN_FIRE: 'fire',
+                self.PIN_MODE: 'mode'
+            }
+            
+            # Set up all the lines
+            for pin, button_name in pin_button_map.items():
+                try:
+                    # Try the newer API first
+                    line = self.chip.get_line(pin)
+                    config = gpiod.line_request()
+                    config.consumer = f"paoer-ship-{button_name}"
+                    config.request_type = gpiod.line_request.DIRECTION_INPUT
+                    line.request(config)
+                    self.lines[pin] = line
+                except AttributeError:
+                    # Fall back to older API
+                    line = self.chip.get_line(pin)
+                    line.request(consumer=f"paoer-ship-{button_name}", type=gpiod.LINE_REQ_DIR_IN)
+                    self.lines[pin] = line
+                
+            print("GPIO pins initialized for button input using gpiod")
+        except Exception as e:
+            print(f"Error setting up GPIO: {e}")
+            if self.chip:
+                self.chip.close()
+                self.chip = None
 
     def cleanup(self):
         """Clean up GPIO resources when no longer needed"""
-        GPIO.cleanup()
+        if self.chip:
+            self.chip.close()
+            self.chip = None
         print("GPIO resources cleaned up")
     
     def get_button_states(self):
@@ -61,6 +105,9 @@ class GPIORPI(GPIOInterface):
         Returns:
             dict: Dictionary with debounced button states
         """
+        if not self.chip:
+            return self.button_states.copy()
+            
         current_time = time.time()
         
         # Check each button and update states with debounce
@@ -74,17 +121,25 @@ class GPIORPI(GPIOInterface):
         }
         
         for pin, button_name in pin_button_map.items():
-            # Input is active LOW (when button pressed, input is LOW/0)
-            button_pressed = not GPIO.input(pin)
+            if pin not in self.lines:
+                continue
+                
+            # Read line value (active LOW with pull-up)
+            line = self.lines[pin]
+            # For buttons with pull-up resistors, 0 means pressed (active low)
+            button_raw_state = (line.get_value() == 0)
             
-            if button_pressed and not self.button_states[button_name]:
+            # Only register a press when the state changes from released to pressed
+            if button_raw_state and not self.last_button_raw_states[button_name]:
                 # Button was just pressed
                 if current_time - self.last_press_time[button_name] > self.debounce_time:
                     self.button_states[button_name] = True
                     self.last_press_time[button_name] = current_time
-            
-            elif not button_pressed:
+            elif not button_raw_state:
                 # Button was released
                 self.button_states[button_name] = False
+            
+            # Update the last raw state
+            self.last_button_raw_states[button_name] = button_raw_state
         
         return self.button_states.copy()

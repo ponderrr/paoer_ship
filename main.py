@@ -1,146 +1,137 @@
 import pygame
 import sys
-import random
-import math
-import os
+import time
 
-from src.board.game_board import GameBoard
-from src.hardware.display_mock import DisplayMock
-from src.input.button_handler import ButtonHandler
-from src.cursor import GameCursor
-
-# Import GPIO implementation based on platform
+# Try to import GPIO support
 try:
-    import RPi.GPIO as GPIO
-    from src.hardware.gpio_rpi import GPIORPI as GPIOImpl
+    import gpiod
     IS_RASPBERRY_PI = True
-    print("Running on Raspberry Pi - using GPIO pins")
-except (ImportError, RuntimeError):
-    from src.hardware.gpio_mock import GPIOMock as GPIOImpl
+except ImportError:
     IS_RASPBERRY_PI = False
-    print("Not running on Raspberry Pi - using keyboard input")
 
 # Initialize Pygame
 pygame.init()
 
-# Screen settings for 1920x1080
-WIDTH, HEIGHT = 1920, 1080
-fullscreen_enabled = False  # Default to windowed mode
+# Screen settings - smaller for better performance
+WIDTH, HEIGHT = 640, 480
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Pao'er Ship")
 
 # Colors
 WHITE = (255, 255, 255)
-BLACK = (20, 20, 30)      # Darker background for a sleek look
-BLUE = (50, 150, 255)     # Vibrant blue for a modern feel
+BLACK = (0, 0, 0)
+BLUE = (50, 150, 255)
 LIGHT_BLUE = (80, 170, 255)
-GRAY = (100, 100, 100)
-LIGHT_GRAY = (200, 200, 200)
-
-# Game settings
-sound_on = True
-difficulty = "Medium"
-ai_animations = True
-grid_enabled = True
+LIGHT_GRAY = (180, 180, 180)
 
 # Load fonts
 pygame.font.init()
-title_font = pygame.font.Font(None, 70)
-button_font = pygame.font.Font(None, 40)
+title_font = pygame.font.Font(None, 50)
+button_font = pygame.font.Font(None, 30)
 
-# Initialize GPIO
-gpio = GPIOImpl()
-gpio.setup()
-
-# --- Fade Transition Helpers (250ms duration) ---
-def fade_out(screen, duration=250):
-    """Fade out over the specified duration (ms)."""
-    fade_surface = pygame.Surface((WIDTH, HEIGHT))
-    fade_surface.fill(BLACK)
-    start_time = pygame.time.get_ticks()
-    clock = pygame.time.Clock()
-    while True:
-        elapsed = pygame.time.get_ticks() - start_time
-        if elapsed >= duration:
-            break
-        alpha = int(255 * (elapsed / duration))
-        fade_surface.set_alpha(alpha)
-        draw_background()  # Redraw current background (if desired)
-        screen.blit(fade_surface, (0, 0))
-        pygame.display.update()
-        clock.tick(60)
-    fade_surface.set_alpha(255)
-    screen.blit(fade_surface, (0, 0))
-    pygame.display.update()
-
-def fade_in(screen, duration=250):
-    """Fade in over the specified duration (ms)."""
-    fade_surface = pygame.Surface((WIDTH, HEIGHT))
-    fade_surface.fill(BLACK)
-    start_time = pygame.time.get_ticks()
-    clock = pygame.time.Clock()
-    while True:
-        elapsed = pygame.time.get_ticks() - start_time
-        if elapsed >= duration:
-            break
-        alpha = int(255 * (1 - elapsed / duration))
-        fade_surface.set_alpha(alpha)
-        draw_background()  # Redraw current background (if desired)
-        screen.blit(fade_surface, (0, 0))
-        pygame.display.update()
-        clock.tick(60)
-    fade_surface.set_alpha(0)
-    screen.blit(fade_surface, (0, 0))
-    pygame.display.update()
-
-# --- Turn Transition Popup ---
-def turn_transition(player):
-    """Display a full-screen popup indicating the next player's turn and wait for input."""
-    screen.fill(BLACK)
-    message = f"Player {player}'s Turn\nPress any key to continue..."
-    lines = message.splitlines()
-    total_height = len(lines) * 50
-    y_offset = (HEIGHT - total_height) // 2
-    for line in lines:
-        text_surface = title_font.render(line, True, WHITE)
-        text_rect = text_surface.get_rect(center=(WIDTH // 2, y_offset))
-        screen.blit(text_surface, text_rect)
-        y_offset += 50
-    pygame.display.flip()
-    waiting = True
-    while waiting:
-        for event in pygame.event.get():
-            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                waiting = False
-            elif event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-# --- Particle System for Background ---
-particles = []
-
-def init_particles(n=50):
-    global particles
-    particles = []
-    for i in range(n):
-        particle = {
-            'x': random.uniform(0, WIDTH),
-            'y': random.uniform(0, HEIGHT),
-            'size': random.uniform(1, 3),
-            'speed': 0.4,  # Fixed slow speed for all particles
-            'color': (200, 200, 255)  # A soft light blue
+# GPIO Button Handler
+class GPIOHandler:
+    def __init__(self):
+        self.chip = None
+        self.lines = {}
+        self.last_states = {
+            'up': False,
+            'down': False,
+            'left': False,
+            'right': False,
+            'fire': False,
+            'mode': False
         }
-        particles.append(particle)
+        
+        # Define GPIO pins for buttons (BCM numbering)
+        self.PIN_UP = 17    # Pin 11
+        self.PIN_DOWN = 27  # Pin 13
+        self.PIN_LEFT = 22  # Pin 15
+        self.PIN_RIGHT = 23 # Pin 16
+        self.PIN_FIRE = 24  # Pin 18
+        self.PIN_MODE = 25  # Pin 22
+        
+        if IS_RASPBERRY_PI:
+            self.setup()
+    
+    def setup(self):
+        try:
+            # Try to open the GPIO chip for Pi 5
+            self.chip = gpiod.Chip("gpiochip4")
+            
+            # Pin to button name mapping
+            pin_button_map = {
+                self.PIN_UP: 'up',
+                self.PIN_DOWN: 'down',
+                self.PIN_LEFT: 'left',
+                self.PIN_RIGHT: 'right',
+                self.PIN_FIRE: 'fire',
+                self.PIN_MODE: 'mode'
+            }
+            
+            # Set up all the lines using the older API (which we know works)
+            for pin, button_name in pin_button_map.items():
+                line = self.chip.get_line(pin)
+                line.request(consumer=f"paoer-ship-{button_name}", type=gpiod.LINE_REQ_DIR_IN)
+                self.lines[pin] = line
+                
+        except Exception as e:
+            print(f"Error setting up GPIO: {e}")
+            if self.chip:
+                self.chip.close()
+                self.chip = None
+    
+    def cleanup(self):
+        if self.chip:
+            self.chip.close()
+            self.chip = None
+    
+    def get_button_states(self):
+        actions = {
+            'up': False,
+            'down': False, 
+            'left': False,
+            'right': False,
+            'fire': False,
+            'mode': False
+        }
+        
+        if not IS_RASPBERRY_PI or not self.chip:
+            return actions
+        
+        try:
+            # Pin to button name mapping
+            pin_button_map = {
+                self.PIN_UP: 'up',
+                self.PIN_DOWN: 'down',
+                self.PIN_LEFT: 'left',
+                self.PIN_RIGHT: 'right',
+                self.PIN_FIRE: 'fire',
+                self.PIN_MODE: 'mode'
+            }
+            
+            for pin, button_name in pin_button_map.items():
+                if pin not in self.lines:
+                    continue
+                
+                # Read line value (active LOW with pull-up)
+                line = self.lines[pin]
+                # For buttons with pull-up resistors, 0 means pressed (active low)
+                current_state = (line.get_value() == 0)
+                
+                # Only register a press when the state changes from released to pressed
+                if current_state and not self.last_states[button_name]:
+                    actions[button_name] = True
+                
+                # Update last state
+                self.last_states[button_name] = current_state
+                
+        except Exception as e:
+            print(f"Error reading GPIO: {e}")
+        
+        return actions
 
-def update_particles():
-    global particles
-    for p in particles:
-        p['y'] += p['speed']
-        if p['y'] > HEIGHT:
-            p['y'] = 0
-            p['x'] = random.uniform(0, WIDTH)
-
-# --- Button Class with Animation and Marquee Effect ---
+# Simple button class
 class Button:
     def __init__(self, x, y, width, height, text, action):
         self.rect = pygame.Rect(x, y, width, height)
@@ -150,327 +141,295 @@ class Button:
         self.hover_color = LIGHT_BLUE
         self.current_color = self.base_color
         self.hovered = False
-        self.selected = False  # For hardware button navigation
-        self.scale = 1.0
-        self.animation_speed = 0.1  # For scaling effect
-        self.text_scroll_offset = 0  # For marquee effect
+        self.selected = False
 
     def update(self):
-        # Scale based on hover/selection state
-        target_scale = 1.1 if (self.hovered or self.selected) else 1.0
-        self.scale += (target_scale - self.scale) * self.animation_speed
-
-        # Use hover color if selected or hovered
         self.current_color = self.hover_color if (self.selected or self.hovered) else self.base_color
 
-        # Check if the text is too wide for the scaled button.
-        text_width, _ = button_font.size(self.text)
-        scaled_button_width = int(self.rect.width * self.scale) - 10  # 10 pixels padding
-        if text_width > scaled_button_width:
-            self.text_scroll_offset += 1  # Adjust scroll speed as needed.
-            max_offset = text_width - scaled_button_width + 20  # 20 pixels gap at end
-            if self.text_scroll_offset > max_offset:
-                self.text_scroll_offset = 0
-        else:
-            self.text_scroll_offset = 0
-
     def draw(self, screen):
-        # Calculate scaled rectangle to keep the button centered.
-        scaled_width = int(self.rect.width * self.scale)
-        scaled_height = int(self.rect.height * self.scale)
-        scaled_rect = pygame.Rect(0, 0, scaled_width, scaled_height)
-        scaled_rect.center = self.rect.center
-
-        # Draw the button.
-        pygame.draw.rect(screen, self.current_color, scaled_rect, border_radius=15)
-        
-        # Render the full text.
+        pygame.draw.rect(screen, self.current_color, self.rect, border_radius=5)
         text_surface = button_font.render(self.text, True, WHITE)
-        text_width = text_surface.get_width()
-        available_width = scaled_rect.width - 10  # 10 pixels padding
-
-        if text_width > available_width:
-            clip_rect = pygame.Rect(self.text_scroll_offset, 0, available_width, text_surface.get_height())
-            if clip_rect.right > text_width:
-                clip_rect.right = text_width
-            clipped_surface = text_surface.subsurface(clip_rect)
-            text_y = scaled_rect.centery - clipped_surface.get_height() // 2
-            screen.blit(clipped_surface, (scaled_rect.x + 5, text_y))
-        else:
-            text_rect = text_surface.get_rect(center=scaled_rect.center)
-            screen.blit(text_surface, text_rect)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        screen.blit(text_surface, text_rect)
 
     def check_hover(self, pos):
-        if self.rect.collidepoint(pos):
-            self.hovered = True
-        else:
-            self.hovered = False
+        self.hovered = self.rect.collidepoint(pos)
 
     def check_click(self, pos):
         if self.rect.collidepoint(pos):
             self.action()
 
-# --- Static Gradient Background with Slow-Moving Particles ---
-def draw_background():
-    gradient = pygame.Surface((WIDTH, HEIGHT))
-    for y in range(HEIGHT):
-        factor = y / HEIGHT
-        r = int(BLACK[0] + (BLUE[0] - BLACK[0]) * factor)
-        g = int(BLACK[1] + (BLUE[1] - BLACK[1]) * factor)
-        b = int(BLACK[2] + (BLUE[2] - BLACK[2]) * factor)
-        pygame.draw.line(gradient, (r, g, b), (0, y), (WIDTH, y))
-    screen.blit(gradient, (0, 0))
-    update_particles()
-    for p in particles:
-        pygame.draw.circle(screen, p['color'], (int(p['x']), int(p['y'])), int(p['size']))
-
-# --- Centralized Settings Dictionary (Board Theme Removed) ---
-default_settings = {
-    "sound": True,
-    "difficulty": "Medium",
-    "ai_animations": True,
-    "grid": True,
-    "fullscreen": False
-}
-settings = default_settings.copy()
-
-# --- Settings Menu as a Dedicated Class (without Board Theme) ---
-class SettingsMenu:
-    def __init__(self, screen, button_handler):
-        self.screen = screen
-        self.clock = pygame.time.Clock()
-        self.button_handler = button_handler
-        self.current_selection = 0  # Currently selected button
-        self.create_buttons()
-        self.frame_count = 0  # For wave animation
-
-    def create_buttons(self):
-        """Creates all the buttons for the settings menu."""
-        button_width = 400
-        button_height = 100
-        center_x = (WIDTH - button_width) // 2
-        start_y = 350
-        spacing = 120
-        self.buttons = [
-            Button(center_x, start_y, button_width, button_height, f"Sound: {'ON' if settings['sound'] else 'OFF'}", lambda: self.toggle("sound")),
-            Button(center_x, start_y + spacing, button_width, button_height, f"Difficulty: {settings['difficulty']}", lambda: self.toggle("difficulty")),
-            Button(center_x, start_y + 2 * spacing, button_width, button_height, f"AI Animations: {'ON' if settings['ai_animations'] else 'OFF'}", lambda: self.toggle("ai_animations")),
-            Button(center_x, start_y + 3 * spacing, button_width, button_height, f"Grid Lines: {'ON' if settings['grid'] else 'OFF'}", lambda: self.toggle("grid")),
-            Button(center_x, start_y + 4 * spacing, button_width, button_height, f"Fullscreen: {'ON' if settings['fullscreen'] else 'OFF'}", lambda: self.toggle_fullscreen()),
-            Button(center_x, start_y + 5 * spacing, button_width, button_height, "Back", self.back)
-        ]
-        # Set first button as selected
-        self.buttons[0].selected = True
-
-    def toggle(self, key):
-        """Toggle game settings like sound, difficulty, AI animations, etc."""
-        if key == "difficulty":
-            options = ["Easy", "Medium", "Hard", "Pao (Impossible)"]
-            current = settings[key]
-            idx = options.index(current)
-            settings[key] = options[(idx + 1) % len(options)]
-        else:
-            settings[key] = not settings[key]
-        self.update_buttons()
-
-    def toggle_fullscreen(self):
-        """Toggle fullscreen mode and update the display settings."""
-        settings["fullscreen"] = not settings["fullscreen"]
-        global screen
-        if settings["fullscreen"]:
-            info = pygame.display.Info()
-            screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
-        else:
-            screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        self.update_buttons()
-
-    def update_buttons(self):
-        """Update button labels to reflect current settings."""
-        for button in self.buttons:
-            if button.text.startswith("Sound:"):
-                button.text = f"Sound: {'ON' if settings['sound'] else 'OFF'}"
-            elif button.text.startswith("Difficulty:"):
-                button.text = f"Difficulty: {settings['difficulty']}"
-            elif button.text.startswith("AI Animations:"):
-                button.text = f"AI Animations: {'ON' if settings['ai_animations'] else 'OFF'}"
-            elif button.text.startswith("Grid Lines:"):
-                button.text = f"Grid Lines: {'ON' if settings['grid'] else 'OFF'}"
-            elif button.text.startswith("Fullscreen:"):
-                button.text = f"Fullscreen: {'ON' if settings['fullscreen'] else 'OFF'}"
-
-    def draw_wavy_settings_title(self):
-        """Draws the 'Settings' title with a wavy animation effect."""
-        title_text = "Settings"
-        x = WIDTH // 2 - len(title_text) * 20  # Center the text
-        wave_amplitude = 12  # Height of wave
-        wave_speed = 0.05  # Controls wave animation speed
-
-        for i, letter in enumerate(title_text):
-            y_wave = math.sin(self.frame_count * wave_speed + i * 0.5) * wave_amplitude
-            letter_surface = title_font.render(letter, True, WHITE)
-            letter_rect = letter_surface.get_rect(midtop=(x + i * 40, 200 + y_wave))
-            self.screen.blit(letter_surface, letter_rect)
-
-    def back(self):
-        """Exit the settings menu and return to main menu."""
-        self.running = False
-
-    def run(self):
-        """Main loop for the settings menu."""
-        self.running = True
-        while self.running:
-            draw_background()
-            self.draw_wavy_settings_title()
-
-            # Get keyboard/GPIO input
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    for button in self.buttons:
-                        button.check_click(pygame.mouse.get_pos())
-                elif event.type == pygame.MOUSEWHEEL:
-                    pass  # Ignore scroll wheel input
-            
-            # Update button hover based on mouse position
-            mouse_pos = pygame.mouse.get_pos()
-            for i, button in enumerate(self.buttons):
-                button.check_hover(mouse_pos)
-            
-            # Handle GPIO/keyboard button navigation
-            actions = self.button_handler.update()
-            
-            if actions['menu_up']:
-                # Clear all selections
-                for button in self.buttons:
-                    button.selected = False
-                
-                # Move selection up
-                self.current_selection = (self.current_selection - 1) % len(self.buttons)
-                self.buttons[self.current_selection].selected = True
-                
-            if actions['menu_down']:
-                # Clear all selections
-                for button in self.buttons:
-                    button.selected = False
-                
-                # Move selection down
-                self.current_selection = (self.current_selection + 1) % len(self.buttons)
-                self.buttons[self.current_selection].selected = True
-            
-            if actions['menu_select']:
-                # Activate the selected button
-                self.buttons[self.current_selection].action()
-            
-            if actions['menu_back']:
-                self.back()
-
-            # Update and draw all buttons
-            for button in self.buttons:
-                button.update()
-                button.draw(self.screen)
-
-            pygame.display.flip()
-            self.frame_count += 1  # Increase frame count for continuous animation
-            self.clock.tick(60)
-
-def settings_menu():
-    fade_out(screen, duration=250)
-    menu = SettingsMenu(screen, button_handler)
-    menu.run()
-    fade_in(screen, duration=250)
-    main_menu()
-
-def start_game():
-    fade_out(screen, duration=250)
-    game_loop()
-
-def quit_game():
-    # Clean up GPIO first
-    gpio.cleanup()
-    pygame.quit()
-    sys.exit()
-
-def draw_wavy_title(text, font, y_offset, frame_count):
-    """Draws text with a wavy animation effect"""
-    x = WIDTH // 2 - len(text) * 20  # Center the text
-    wave_amplitude = 15  # Height of wave
-    wave_speed = 0.05  # Controls wave animation speed
-
-    for i, letter in enumerate(text):
-        # Create a wave effect by offsetting each letter
-        y_wave = math.sin(frame_count * wave_speed + i * 0.5) * wave_amplitude
-        letter_surface = font.render(letter, True, WHITE)
-        letter_rect = letter_surface.get_rect(midtop=(x + i * 40, y_offset + y_wave))
-        screen.blit(letter_surface, letter_rect)
-
-def main_menu():
-    global screen  
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN if settings["fullscreen"] else 0)
-
-    button_width = 400
-    button_height = 100
-    center_x = (WIDTH - button_width) // 2
-    start_y = 500
-    spacing = 150
-
-    buttons = [
-        Button(center_x, start_y, button_width, button_height, "Start Game", start_game),
-        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_menu),
-        Button(center_x, start_y + 2 * spacing, button_width, button_height, "Quit", quit_game)
-    ]
-    
-    # Set first button as selected
-    current_selection = 0
-    buttons[current_selection].selected = True
-
+# Game states
+def game_screen():
+    """Simplified game screen"""
     clock = pygame.time.Clock()
-    frame_count = 0  # Track animation frames
-
-    # Initialize button handler with GPIO
-    button_handler = ButtonHandler(gpio)
-
-    while True:
-        draw_background()
+    font = pygame.font.Font(None, 36)
+    
+    # Set up basic game layout
+    board = [[0 for _ in range(10)] for _ in range(10)]
+    board[2][3] = 1  # Place a "ship" at 2,3
+    board[5][5] = 1  # Place another "ship" at 5,5
+    
+    cursor_x, cursor_y = 0, 0
+    
+    running = True
+    while running:
+        # Fill background
+        screen.fill(BLACK)
         
-        # Draw the animated wavy title
-        draw_wavy_title("Pao'er Ship", title_font, 150, frame_count)
+        # Draw grid
+        cell_size = 30
+        grid_offset_x = 150
+        grid_offset_y = 100
+        
+        # Draw column letters and row numbers
+        for i in range(10):
+            # Column labels (A-J)
+            letter = chr(65 + i)
+            text = font.render(letter, True, WHITE)
+            screen.blit(text, (grid_offset_x + i * cell_size + 10, grid_offset_y - 30))
+            
+            # Row labels (1-10)
+            number = str(i + 1)
+            text = font.render(number, True, WHITE)
+            screen.blit(text, (grid_offset_x - 30, grid_offset_y + i * cell_size + 10))
+        
+        # Draw grid cells
+        for y in range(10):
+            for x in range(10):
+                cell_x = grid_offset_x + x * cell_size
+                cell_y = grid_offset_y + y * cell_size
+                
+                # Determine cell color based on state
+                if board[y][x] == 0:
+                    color = (50, 50, 50)  # Empty cell
+                elif board[y][x] == 1:
+                    color = (0, 255, 0)   # Ship
+                elif board[y][x] == 2:
+                    color = (255, 0, 0)   # Hit
+                else:
+                    color = (0, 0, 255)   # Miss
+                
+                # Draw cell
+                pygame.draw.rect(screen, color, (cell_x, cell_y, cell_size - 2, cell_size - 2))
+        
+        # Draw cursor
+        cursor_rect = pygame.Rect(
+            grid_offset_x + cursor_x * cell_size,
+            grid_offset_y + cursor_y * cell_size,
+            cell_size - 2,
+            cell_size - 2
+        )
+        pygame.draw.rect(screen, (255, 255, 0), cursor_rect, 3)
+        
+        # Draw status
+        status_text = font.render("Press 'Mode' button to return to menu", True, WHITE)
+        screen.blit(status_text, (WIDTH // 2 - 200, HEIGHT - 50))
         
         # Process events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                quit_game()
+                running = False
+                pygame.quit()
+                sys.exit()
+                
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_UP and cursor_y > 0:
+                    cursor_y -= 1
+                elif event.key == pygame.K_DOWN and cursor_y < 9:
+                    cursor_y += 1
+                elif event.key == pygame.K_LEFT and cursor_x > 0:
+                    cursor_x -= 1
+                elif event.key == pygame.K_RIGHT and cursor_x < 9:
+                    cursor_x += 1
+                elif event.key == pygame.K_SPACE:
+                    # Fire at cell
+                    if board[cursor_y][cursor_x] == 1:
+                        board[cursor_y][cursor_x] = 2  # Hit
+                    elif board[cursor_y][cursor_x] == 0:
+                        board[cursor_y][cursor_x] = 3  # Miss
+        
+        # Check GPIO buttons
+        button_states = gpio_handler.get_button_states()
+        
+        if button_states['up'] and cursor_y > 0:
+            cursor_y -= 1
+        if button_states['down'] and cursor_y < 9:
+            cursor_y += 1
+        if button_states['left'] and cursor_x > 0:
+            cursor_x -= 1
+        if button_states['right'] and cursor_x < 9:
+            cursor_x += 1
+        if button_states['fire']:
+            # Fire at cell
+            if board[cursor_y][cursor_x] == 1:
+                board[cursor_y][cursor_x] = 2  # Hit
+            elif board[cursor_y][cursor_x] == 0:
+                board[cursor_y][cursor_x] = 3  # Miss
+        if button_states['mode']:
+            running = False
+        
+        # Update display
+        pygame.display.flip()
+        clock.tick(30)
+
+def settings_screen():
+    """Simplified settings screen"""
+    screen.fill(BLACK)
+    font = pygame.font.Font(None, 36)
+    text = font.render("Settings Screen (Placeholder)", True, WHITE)
+    screen.blit(text, (WIDTH//2 - 180, HEIGHT//2))
+    
+    back_text = font.render("Press any key to return to menu", True, WHITE)
+    screen.blit(back_text, (WIDTH//2 - 180, HEIGHT//2 + 50))
+    
+    pygame.display.flip()
+    
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+                waiting = False
+            elif event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        
+        # Check for GPIO button presses
+        button_states = gpio_handler.get_button_states()
+        if any(button_states.values()):
+            waiting = False
+        
+        # Small delay to prevent CPU hogging
+        time.sleep(0.01)
+
+def main_menu():
+    # Set up menu buttons
+    button_width = 200
+    button_height = 50
+    center_x = (WIDTH - button_width) // 2
+    start_y = 200
+    spacing = 70
+
+    buttons = [
+        Button(center_x, start_y, button_width, button_height, "Start Game", game_screen),
+        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
+        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
+    ]
+    
+    # Default selection
+    current_selection = 0
+    buttons[current_selection].selected = True
+
+    clock = pygame.time.Clock()
+    
+    # Main menu loop
+    running = True
+    while running:
+        # Fill background
+        screen.fill(BLACK)
+        
+        # Draw title
+        title_text = title_font.render("Pao'er Ship", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
+        screen.blit(title_text, title_rect)
+        
+        # Process events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            
+            # Mouse events
+            elif event.type == pygame.MOUSEMOTION:
+                for button in buttons:
+                    button.check_hover(event.pos)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 for button in buttons:
-                    button.check_click(pygame.mouse.get_pos())
-        
-        # Update button hover based on mouse position
-        mouse_pos = pygame.mouse.get_pos()
-        for button in buttons:
-            button.check_hover(mouse_pos)
+                    button.check_click(event.pos)
             
-        # Handle GPIO/keyboard button navigation
-        actions = button_handler.update()
+            # Keyboard navigation
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    # Clear selections
+                    for button in buttons:
+                        button.selected = False
+                    # Move selection up
+                    current_selection = (current_selection - 1) % len(buttons)
+                    buttons[current_selection].selected = True
+                
+                elif event.key == pygame.K_DOWN:
+                    # Clear selections
+                    for button in buttons:
+                        button.selected = False
+                    # Move selection down
+                    current_selection = (current_selection + 1) % len(buttons)
+                    buttons[current_selection].selected = True
+                
+                elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                    # Activate selected button
+                    buttons[current_selection].action()
+                
+                elif event.key == pygame.K_ESCAPE:
+                    running = False
         
-        if actions['menu_up']:
-            # Clear all selections
+        # Check for GPIO button presses
+        button_states = gpio_handler.get_button_states()
+        
+        if button_states['up']:
+            # Clear selections
             for button in buttons:
                 button.selected = False
-            
             # Move selection up
             current_selection = (current_selection - 1) % len(buttons)
             buttons[current_selection].selected = True
-            
-        if actions['menu_down']:
-            # Clear all selections
+        
+        if button_states['down']:
+            # Clear selections
             for button in buttons:
                 button.selected = False
-            
             # Move selection down
             current_selection = (current_selection + 1) % len(buttons)
             buttons[current_selection].selected = True
         
-        if actions['menu_select']:
-            # Activate the selected button
+        if button_states['fire']:
+            # Activate selected button
             buttons[current_selection].action()
+        
+        # Update and draw buttons
+        for button in buttons:
+            button.update()
+            button.draw(screen)
+        
+        # Display controls help
+        help_font = pygame.font.Font(None, 24)
+        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 150, HEIGHT - 40))
+        
+        # Update display
+        pygame.display.flip()
+        
+        # Limit framerate
+        clock.tick(30)
+
+def quit_game():
+    gpio_handler.cleanup()
+    pygame.quit()
+    sys.exit()
+
+# Initialize GPIO handler
+gpio_handler = GPIOHandler()
+
+def main():
+    try:
+        main_menu()
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        gpio_handler.cleanup()
+        pygame.quit()
+
+if __name__ == "__main__":
+    main()
