@@ -1,6 +1,7 @@
 import pygame
 import sys
 import time
+from ship_placement_screen import ShipPlacementScreen
 
 # Try to import GPIO support
 try:
@@ -29,7 +30,108 @@ pygame.font.init()
 title_font = pygame.font.Font(None, 50)
 button_font = pygame.font.Font(None, 30)
 
-# GPIO Button Handler
+# # GPIO Button Handler
+# class GPIOHandler:
+#     def __init__(self):
+#         self.chip = None
+#         self.lines = {}
+#         self.last_states = {
+#             'up': False,
+#             'down': False,
+#             'left': False,
+#             'right': False,
+#             'fire': False,
+#             'mode': False
+#         }
+        
+#         # Define GPIO pins for buttons (BCM numbering)
+#         self.PIN_UP = 17    # Pin 11
+#         self.PIN_DOWN = 27  # Pin 13
+#         self.PIN_LEFT = 22  # Pin 15
+#         self.PIN_RIGHT = 23 # Pin 16
+#         self.PIN_FIRE = 24  # Pin 18
+#         self.PIN_MODE = 25  # Pin 22
+        
+#         if IS_RASPBERRY_PI:
+#             self.setup()
+    
+#     def setup(self):
+#         try:
+#             # Try to open the GPIO chip for Pi 5
+#             self.chip = gpiod.Chip("gpiochip4")
+            
+#             # Pin to button name mapping
+#             pin_button_map = {
+#                 self.PIN_UP: 'up',
+#                 self.PIN_DOWN: 'down',
+#                 self.PIN_LEFT: 'left',
+#                 self.PIN_RIGHT: 'right',
+#                 self.PIN_FIRE: 'fire',
+#                 self.PIN_MODE: 'mode'
+#             }
+            
+#             # Set up all the lines using the older API (which we know works)
+#             for pin, button_name in pin_button_map.items():
+#                 line = self.chip.get_line(pin)
+#                 line.request(consumer=f"paoer-ship-{button_name}", type=gpiod.LINE_REQ_DIR_IN)
+#                 self.lines[pin] = line
+                
+#         except Exception as e:
+#             print(f"Error setting up GPIO: {e}")
+#             if self.chip:
+#                 self.chip.close()
+#                 self.chip = None
+    
+#     def cleanup(self):
+#         if self.chip:
+#             self.chip.close()
+#             self.chip = None
+    
+#     def get_button_states(self):
+#         actions = {
+#             'up': False,
+#             'down': False, 
+#             'left': False,
+#             'right': False,
+#             'fire': False,
+#             'mode': False
+#         }
+        
+#         if not IS_RASPBERRY_PI or not self.chip:
+#             return actions
+        
+#         try:
+#             # Pin to button name mapping
+#             pin_button_map = {
+#                 self.PIN_UP: 'up',
+#                 self.PIN_DOWN: 'down',
+#                 self.PIN_LEFT: 'left',
+#                 self.PIN_RIGHT: 'right',
+#                 self.PIN_FIRE: 'fire',
+#                 self.PIN_MODE: 'mode'
+#             }
+            
+#             for pin, button_name in pin_button_map.items():
+#                 if pin not in self.lines:
+#                     continue
+                
+#                 # Read line value (active LOW with pull-up)
+#                 line = self.lines[pin]
+#                 # For buttons with pull-up resistors, 0 means pressed (active low)
+#                 current_state = (line.get_value() == 0)
+                
+#                 # Only register a press when the state changes from released to pressed
+#                 if current_state and not self.last_states[button_name]:
+#                     actions[button_name] = True
+                
+#                 # Update last state
+#                 self.last_states[button_name] = current_state
+                
+#         except Exception as e:
+#             print(f"Error reading GPIO: {e}")
+        
+#         return actions
+
 class GPIOHandler:
     def __init__(self):
         self.chip = None
@@ -40,7 +142,8 @@ class GPIOHandler:
             'left': False,
             'right': False,
             'fire': False,
-            'mode': False
+            'mode': False,
+            'rotate': False  # Add rotate button state
         }
         
         # Define GPIO pins for buttons (BCM numbering)
@@ -50,6 +153,7 @@ class GPIOHandler:
         self.PIN_RIGHT = 23 # Pin 16
         self.PIN_FIRE = 24  # Pin 18
         self.PIN_MODE = 25  # Pin 22
+        self.PIN_ROTATE = 26  # Pin 37 (TODO: Update this when the hardware is connected)
         
         if IS_RASPBERRY_PI:
             self.setup()
@@ -66,7 +170,8 @@ class GPIOHandler:
                 self.PIN_LEFT: 'left',
                 self.PIN_RIGHT: 'right',
                 self.PIN_FIRE: 'fire',
-                self.PIN_MODE: 'mode'
+                self.PIN_MODE: 'mode',
+                self.PIN_ROTATE: 'rotate'  # Add the new rotate button
             }
             
             # Set up all the lines using the older API (which we know works)
@@ -93,7 +198,8 @@ class GPIOHandler:
             'left': False,
             'right': False,
             'fire': False,
-            'mode': False
+            'mode': False,
+            'rotate': False  # Include rotate in actions
         }
         
         if not IS_RASPBERRY_PI or not self.chip:
@@ -107,7 +213,8 @@ class GPIOHandler:
                 self.PIN_LEFT: 'left',
                 self.PIN_RIGHT: 'right',
                 self.PIN_FIRE: 'fire',
-                self.PIN_MODE: 'mode'
+                self.PIN_MODE: 'mode',
+                self.PIN_ROTATE: 'rotate'  # Add the new rotate button
             }
             
             for pin, button_name in pin_button_map.items():
@@ -194,23 +301,275 @@ def settings_screen():
         # Small delay to prevent CPU hogging
         time.sleep(0.01)
 
-def game_screen(ai_mode=True, difficulty="Medium"):
-    """Simplified game screen with AI or player mode"""
+def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_board=None):
+    """
+    Game screen where the actual gameplay happens after ship placement
+    
+    Args:
+        ai_mode (bool): Whether playing against AI (True) or another player (False)
+        difficulty (str): AI difficulty level if ai_mode is True
+        player1_board: Game board for player 1
+        player2_board: Game board for player 2 (or AI)
+    """
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
+    small_font = pygame.font.Font(None, 24)
     
-    # Set up basic game layout
-    board = [[0 for _ in range(10)] for _ in range(10)]
-    board[2][3] = 1  # Place a "ship" at 2,3
-    board[5][5] = 1  # Place another "ship" at 5,5
+    # Create empty boards if none were provided
+    if player1_board is None:
+        player1_board = GameBoard()
+    if player2_board is None:
+        player2_board = GameBoard()
     
-    cursor_x, cursor_y = 0, 0
-    
-    # Setup game mode specific variables
+    # Set up game mode specific variables
     game_mode_text = f"VS AI ({difficulty})" if ai_mode else "VS Player"
     
+    # Game state variables
+    current_player = 1  # 1 for player 1, 2 for player 2
+    cursor_x, cursor_y = 0, 0
+    player1_shots = set()  # Track player 1's shots (x, y)
+    player2_shots = set()  # Track player 2's shots (x, y)
+    winner = None  # None, 1, or 2
+    move_delay = 0  # Delay for cursor movement
+    
+    # Display boards for each player (what they can see)
+    # player1_view: Player 1's shots on Player 2's board
+    # player2_view: Player 2's shots on Player 1's board
+    player1_view = np.zeros((10, 10), dtype=int)
+    player2_view = np.zeros((10, 10), dtype=int)
+    
+    # Get player's board state to display their own ships
+    player1_own_view = player1_board.get_display_state()
+    player2_own_view = player2_board.get_display_state()
+    
+    # Firing handling functions
+    def process_shot(x, y, shooter_board, target_board, shots_set):
+        """Process a shot from one player to another's board"""
+        if (x, y) in shots_set:
+            return False  # Shot already taken
+            
+        shots_set.add((x, y))
+        
+        # Check if hit
+        hit = False
+        for ship in target_board.ships:
+            if ship.receive_hit(x, y):
+                hit = True
+                break
+                
+        return hit
+    
+    def check_game_over():
+        """Check if the game is over (all ships sunk)"""
+        player1_lost = all(ship.is_sunk() for ship in player1_board.ships)
+        player2_lost = all(ship.is_sunk() for ship in player2_board.ships)
+        
+        if player1_lost:
+            return 2  # Player 2 wins
+        elif player2_lost:
+            return 1  # Player 1 wins
+        return None  # No winner yet
+    
+    def ai_take_shot():
+        """AI opponent takes a shot based on difficulty"""
+        if difficulty == "Easy":
+            # Random targeting
+            while True:
+                x = random.randint(0, 9)
+                y = random.randint(0, 9)
+                if (x, y) not in player2_shots:
+                    break
+        
+        elif difficulty == "Medium":
+            # Slightly smarter targeting - hunt mode with random shots
+            hit_cells = [(x, y) for (x, y) in player2_shots if player2_view[x][y] == CellState.HIT.value]
+            
+            if hit_cells:
+                # Target around previous hits
+                last_hit_x, last_hit_y = hit_cells[-1]
+                possible_targets = []
+                
+                for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                    nx, ny = last_hit_x + dx, last_hit_y + dy
+                    if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in player2_shots:
+                        possible_targets.append((nx, ny))
+                
+                if possible_targets:
+                    x, y = random.choice(possible_targets)
+                else:
+                    # No adjacent cells available, pick a random one
+                    while True:
+                        x = random.randint(0, 9)
+                        y = random.randint(0, 9)
+                        if (x, y) not in player2_shots:
+                            break
+            else:
+                # No hits yet, pick randomly
+                while True:
+                    x = random.randint(0, 9)
+                    y = random.randint(0, 9)
+                    if (x, y) not in player2_shots:
+                        break
+        
+        else:  # Hard
+            # Smarter targeting - hunt and target with pattern recognition
+            hit_cells = [(x, y) for (x, y) in player2_shots if player2_view[x][y] == CellState.HIT.value]
+            
+            if hit_cells and len(hit_cells) >= 2:
+                # Look for orientation pattern in multiple hits
+                hits_in_rows = {}
+                hits_in_cols = {}
+                
+                for x, y in hit_cells:
+                    hits_in_rows[x] = hits_in_rows.get(x, 0) + 1
+                    hits_in_cols[y] = hits_in_cols.get(y, 0) + 1
+                
+                # Find rows or columns with multiple hits (likely ship orientation)
+                ship_rows = [x for x, count in hits_in_rows.items() if count > 1]
+                ship_cols = [y for y, count in hits_in_cols.items() if count > 1]
+                
+                if ship_rows:
+                    # Target along row
+                    row = random.choice(ship_rows)
+                    hit_positions = [y for (x, y) in hit_cells if x == row]
+                    min_y = min(hit_positions)
+                    max_y = max(hit_positions)
+                    
+                    # Try left or right of existing hits
+                    if min_y > 0 and (row, min_y - 1) not in player2_shots:
+                        x, y = row, min_y - 1
+                    elif max_y < 9 and (row, max_y + 1) not in player2_shots:
+                        x, y = row, max_y + 1
+                    else:
+                        # Fill gaps if any
+                        for col in range(min_y, max_y + 1):
+                            if (row, col) not in player2_shots:
+                                x, y = row, col
+                                break
+                        else:
+                            # No valid targets in this row, pick randomly
+                            while True:
+                                x = random.randint(0, 9)
+                                y = random.randint(0, 9)
+                                if (x, y) not in player2_shots:
+                                    break
+                
+                elif ship_cols:
+                    # Target along column
+                    col = random.choice(ship_cols)
+                    hit_positions = [x for (x, y) in hit_cells if y == col]
+                    min_x = min(hit_positions)
+                    max_x = max(hit_positions)
+                    
+                    # Try above or below existing hits
+                    if min_x > 0 and (min_x - 1, col) not in player2_shots:
+                        x, y = min_x - 1, col
+                    elif max_x < 9 and (max_x + 1, col) not in player2_shots:
+                        x, y = max_x + 1, col
+                    else:
+                        # Fill gaps if any
+                        for row in range(min_x, max_x + 1):
+                            if (row, col) not in player2_shots:
+                                x, y = row, col
+                                break
+                        else:
+                            # No valid targets in this column, pick randomly
+                            while True:
+                                x = random.randint(0, 9)
+                                y = random.randint(0, 9)
+                                if (x, y) not in player2_shots:
+                                    break
+                else:
+                    # Look for single hits to target adjacent cells
+                    last_hit_x, last_hit_y = hit_cells[-1]
+                    possible_targets = []
+                    
+                    for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                        nx, ny = last_hit_x + dx, last_hit_y + dy
+                        if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in player2_shots:
+                            possible_targets.append((nx, ny))
+                    
+                    if possible_targets:
+                        x, y = random.choice(possible_targets)
+                    else:
+                        # No adjacent cells available, pick a random one
+                        while True:
+                            x = random.randint(0, 9)
+                            y = random.randint(0, 9)
+                            if (x, y) not in player2_shots:
+                                break
+            
+            elif hit_cells:
+                # Just one hit, target adjacent cells
+                last_hit_x, last_hit_y = hit_cells[-1]
+                possible_targets = []
+                
+                for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                    nx, ny = last_hit_x + dx, last_hit_y + dy
+                    if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in player2_shots:
+                        possible_targets.append((nx, ny))
+                
+                if possible_targets:
+                    x, y = random.choice(possible_targets)
+                else:
+                    # No adjacent cells available, pick a random one
+                    while True:
+                        x = random.randint(0, 9)
+                        y = random.randint(0, 9)
+                        if (x, y) not in player2_shots:
+                            break
+            
+            else:
+                # No hits yet, use a checkerboard pattern for efficiency
+                available_cells = []
+                for i in range(10):
+                    for j in range(10):
+                        # Checkerboard pattern - only target alternate cells
+                        if (i + j) % 2 == 0 and (i, j) not in player2_shots:
+                            available_cells.append((i, j))
+                
+                if available_cells:
+                    x, y = random.choice(available_cells)
+                else:
+                    # Fallback to any available cell
+                    while True:
+                        x = random.randint(0, 9)
+                        y = random.randint(0, 9)
+                        if (x, y) not in player2_shots:
+                            break
+        
+        # Process AI shot
+        hit = process_shot(x, y, player2_board, player1_board, player2_shots)
+        
+        # Update the view
+        if hit:
+            player2_view[x][y] = CellState.HIT.value
+        else:
+            player2_view[x][y] = CellState.MISS.value
+        
+        # Return shot coordinates for display purposes
+        return x, y, hit
+    
+    # Wait for next player message if two-player mode
+    current_message = ""
+    showing_message = False
+    message_timer = 0
+    
+    def show_player_switch_message():
+        nonlocal showing_message, message_timer, current_message
+        current_message = f"Player {current_player}'s Turn"
+        showing_message = True
+        message_timer = pygame.time.get_ticks() + 2000  # Show for 2 seconds
+    
+    # Initial player switch message in two-player mode
+    if not ai_mode:
+        show_player_switch_message()
+    
+    # Main game loop
     running = True
     while running:
+        current_time = pygame.time.get_ticks()
+        
         # Fill background
         screen.fill(BLACK)
         
@@ -218,54 +577,105 @@ def game_screen(ai_mode=True, difficulty="Medium"):
         mode_text = font.render(game_mode_text, True, WHITE)
         screen.blit(mode_text, (WIDTH - 200, 20))
         
-        # Draw grid
-        cell_size = 30
-        grid_offset_x = 150
-        grid_offset_y = 100
+        # Handle player switch message
+        if showing_message:
+            if current_time > message_timer:
+                showing_message = False
+            else:
+                message_surface = font.render(current_message, True, LIGHT_BLUE)
+                message_rect = message_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+                
+                # Draw semi-transparent background
+                s = pygame.Surface((WIDTH, HEIGHT))
+                s.set_alpha(200)
+                s.fill(BLACK)
+                screen.blit(s, (0, 0))
+                
+                # Draw message
+                screen.blit(message_surface, message_rect)
+                
+                # Draw continue prompt
+                if not ai_mode:
+                    prompt = small_font.render("Press FIRE to continue", True, WHITE)
+                    prompt_rect = prompt.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 50))
+                    screen.blit(prompt, prompt_rect)
+                
+                # Skip other rendering while showing message
+                pygame.display.flip()
+                clock.tick(30)
+                
+                # Check for button press to dismiss message
+                if not ai_mode:
+                    button_states = gpio_handler.get_button_states()
+                    if button_states['fire']:
+                        showing_message = False
+                
+                continue
         
-        # Draw column letters and row numbers
-        for i in range(10):
-            # Column labels (A-J)
-            letter = chr(65 + i)
-            text = font.render(letter, True, WHITE)
-            screen.blit(text, (grid_offset_x + i * cell_size + 10, grid_offset_y - 30))
+        # Determine whose turn it is and which board to display
+        if current_player == 1:
+            # Player 1's turn - show player 2's board with player 1's shots
+            active_board = player2_board
+            view_board = player1_view
+            shots = player1_shots
             
-            # Row labels (1-10)
-            number = str(i + 1)
-            text = font.render(number, True, WHITE)
-            screen.blit(text, (grid_offset_x - 30, grid_offset_y + i * cell_size + 10))
+            # Also show player 1's board with their ships
+            own_board = player1_own_view
+        else:
+            # Player 2's turn - show player 1's board with player 2's shots
+            active_board = player1_board
+            view_board = player2_view
+            shots = player2_shots
+            
+            # Also show player 2's board with their ships
+            own_board = player2_own_view
         
-        # Draw grid cells
-        for y in range(10):
-            for x in range(10):
-                cell_x = grid_offset_x + x * cell_size
-                cell_y = grid_offset_y + y * cell_size
-                
-                # Determine cell color based on state
-                if board[y][x] == 0:
-                    color = (50, 50, 50)  # Empty cell
-                elif board[y][x] == 1:
-                    color = (0, 255, 0)   # Ship
-                elif board[y][x] == 2:
-                    color = (255, 0, 0)   # Hit
-                else:
-                    color = (0, 0, 255)   # Miss
-                
-                # Draw cell
-                pygame.draw.rect(screen, color, (cell_x, cell_y, cell_size - 2, cell_size - 2))
-        
-        # Draw cursor
-        cursor_rect = pygame.Rect(
-            grid_offset_x + cursor_x * cell_size,
-            grid_offset_y + cursor_y * cell_size,
-            cell_size - 2,
-            cell_size - 2
+        # Draw opponent board (with shots but not ships)
+        # This is the board the current player is firing at
+        draw_board(
+            screen, 
+            font, 
+            view_board, 
+            150, 
+            80, 
+            30, 
+            cursor_x, 
+            cursor_y, 
+            True,  # Show cursor on opponent's board
+            "Opponent's Board"
         )
-        pygame.draw.rect(screen, (255, 255, 0), cursor_rect, 3)
         
-        # Draw status
-        status_text = font.render("Press 'Mode' button to return to menu", True, WHITE)
-        screen.blit(status_text, (WIDTH // 2 - 200, HEIGHT - 50))
+        # Draw player's own board (with ships)
+        # This is to see the status of their own ships
+        if not winner:
+            draw_board(
+                screen,
+                font,
+                own_board,
+                400,
+                80,
+                25,  # Smaller cell size for own board
+                -1,  # No cursor on own board
+                -1,
+                False,
+                "Your Board"
+            )
+        
+        # Draw current player
+        if not winner:
+            player_text = font.render(f"Player {current_player}'s Turn", True, WHITE)
+            screen.blit(player_text, (20, 20))
+        
+        # Draw status message
+        if winner:
+            winner_text = font.render(f"Player {winner} Wins!", True, (255, 215, 0))
+            screen.blit(winner_text, (WIDTH // 2 - 100, HEIGHT - 100))
+            
+            restart_text = small_font.render("Press MODE to return to menu", True, WHITE)
+            screen.blit(restart_text, (WIDTH // 2 - 120, HEIGHT - 60))
+        else:
+            status_text = small_font.render("Press FIRE to shoot, MODE to return to menu", True, WHITE)
+            screen.blit(status_text, (WIDTH // 2 - 160, HEIGHT - 40))
         
         # Process events
         for event in pygame.event.get():
@@ -274,47 +684,177 @@ def game_screen(ai_mode=True, difficulty="Medium"):
                 pygame.quit()
                 sys.exit()
                 
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+            elif event.type == pygame.KEYDOWN and not showing_message:
+                if event.key == pygame.K_ESCAPE or event.key == pygame.K_TAB:
                     running = False
-                elif event.key == pygame.K_UP and cursor_y > 0:
-                    cursor_y -= 1
-                elif event.key == pygame.K_DOWN and cursor_y < 9:
-                    cursor_y += 1
-                elif event.key == pygame.K_LEFT and cursor_x > 0:
-                    cursor_x -= 1
-                elif event.key == pygame.K_RIGHT and cursor_x < 9:
-                    cursor_x += 1
-                elif event.key == pygame.K_SPACE:
-                    # Fire at cell
-                    if board[cursor_y][cursor_x] == 1:
-                        board[cursor_y][cursor_x] = 2  # Hit
-                    elif board[cursor_y][cursor_x] == 0:
-                        board[cursor_y][cursor_x] = 3  # Miss
+                
+                if not winner:
+                    if event.key == pygame.K_UP and cursor_y > 0:
+                        cursor_y -= 1
+                    elif event.key == pygame.K_DOWN and cursor_y < 9:
+                        cursor_y += 1
+                    elif event.key == pygame.K_LEFT and cursor_x > 0:
+                        cursor_x -= 1
+                    elif event.key == pygame.K_RIGHT and cursor_x < 9:
+                        cursor_x += 1
+                    elif event.key == pygame.K_SPACE and current_player == 1:
+                        # Player 1 fires
+                        if (cursor_x, cursor_y) not in player1_shots:
+                            hit = process_shot(cursor_x, cursor_y, player1_board, player2_board, player1_shots)
+                            
+                            # Update the view
+                            if hit:
+                                player1_view[cursor_x][cursor_y] = CellState.HIT.value
+                            else:
+                                player1_view[cursor_x][cursor_y] = CellState.MISS.value
+                            
+                            # Check if game over
+                            new_winner = check_game_over()
+                            if new_winner:
+                                winner = new_winner
+                            elif not ai_mode:
+                                # Switch to player 2's turn
+                                current_player = 2
+                                cursor_x = 0
+                                cursor_y = 0
+                                show_player_switch_message()
+                            else:
+                                # AI's turn
+                                ai_x, ai_y, ai_hit = ai_take_shot()
+                                
+                                # Check if game over after AI move
+                                new_winner = check_game_over()
+                                if new_winner:
+                                    winner = new_winner
         
-        # Check GPIO buttons
-        button_states = gpio_handler.get_button_states()
-        
-        if button_states['up'] and cursor_y > 0:
-            cursor_y -= 1
-        if button_states['down'] and cursor_y < 9:
-            cursor_y += 1
-        if button_states['left'] and cursor_x > 0:
-            cursor_x -= 1
-        if button_states['right'] and cursor_x < 9:
-            cursor_x += 1
-        if button_states['fire']:
-            # Fire at cell
-            if board[cursor_y][cursor_x] == 1:
-                board[cursor_y][cursor_x] = 2  # Hit
-            elif board[cursor_y][cursor_x] == 0:
-                board[cursor_y][cursor_x] = 3  # Miss
-        if button_states['mode']:
-            running = False
+        # Check GPIO buttons if not showing message
+        if not showing_message:
+            button_states = gpio_handler.get_button_states()
+            
+            if button_states['up'] and cursor_y > 0 and not winner:
+                cursor_y -= 1
+            if button_states['down'] and cursor_y < 9 and not winner:
+                cursor_y += 1
+            if button_states['left'] and cursor_x > 0 and not winner:
+                cursor_x -= 1
+            if button_states['right'] and cursor_x < 9 and not winner:
+                cursor_x += 1
+                
+            if button_states['fire'] and not winner:
+                if current_player == 1:
+                    # Player 1 fires
+                    if (cursor_x, cursor_y) not in player1_shots:
+                        hit = process_shot(cursor_x, cursor_y, player1_board, player2_board, player1_shots)
+                        
+                        # Update the view
+                        if hit:
+                            player1_view[cursor_x][cursor_y] = CellState.HIT.value
+                        else:
+                            player1_view[cursor_x][cursor_y] = CellState.MISS.value
+                        
+                        # Check if game over
+                        new_winner = check_game_over()
+                        if new_winner:
+                            winner = new_winner
+                        elif not ai_mode:
+                            # Switch to player 2's turn
+                            current_player = 2
+                            cursor_x = 0
+                            cursor_y = 0
+                            show_player_switch_message()
+                        else:
+                            # AI's turn
+                            ai_x, ai_y, ai_hit = ai_take_shot()
+                            
+                            # Check if game over after AI move
+                            new_winner = check_game_over()
+                            if new_winner:
+                                winner = new_winner
+                
+                elif current_player == 2 and not ai_mode:
+                    # Player 2 fires
+                    if (cursor_x, cursor_y) not in player2_shots:
+                        hit = process_shot(cursor_x, cursor_y, player2_board, player1_board, player2_shots)
+                        
+                        # Update the view
+                        if hit:
+                            player2_view[cursor_x][cursor_y] = CellState.HIT.value
+                        else:
+                            player2_view[cursor_x][cursor_y] = CellState.MISS.value
+                        
+                        # Check if game over
+                        new_winner = check_game_over()
+                        if new_winner:
+                            winner = new_winner
+                        else:
+                            # Switch to player 1's turn
+                            current_player = 1
+                            cursor_x = 0
+                            cursor_y = 0
+                            show_player_switch_message()
+            
+            if button_states['mode']:
+                running = False  # Return to main menu
         
         # Update display
         pygame.display.flip()
         clock.tick(30)
+
+def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cursor_y, show_cursor, title=None):
+    """Helper function to draw a game board"""
+    # Draw title if provided
+    if title:
+        title_text = font.render(title, True, WHITE)
+        title_rect = title_text.get_rect(center=(offset_x + (10 * cell_size) // 2, offset_y - 30))
+        screen.blit(title_text, title_rect)
+    
+    # Draw column labels (A-J)
+    for i in range(10):
+        letter = chr(65 + i)
+        text = pygame.font.Font(None, 20).render(letter, True, WHITE)
+        screen.blit(text, (offset_x + i * cell_size + cell_size // 3, offset_y - 20))
+    
+    # Draw row labels (1-10)
+    for i in range(10):
+        number = str(i + 1)
+        text = pygame.font.Font(None, 20).render(number, True, WHITE)
+        screen.blit(text, (offset_x - 20, offset_y + i * cell_size + cell_size // 3))
+    
+    # Draw grid cells
+    for y in range(10):
+        for x in range(10):
+            cell_rect = pygame.Rect(
+                offset_x + x * cell_size,
+                offset_y + y * cell_size,
+                cell_size - 2,
+                cell_size - 2
+            )
+            
+            # Determine cell color based on state
+            cell_value = board[y][x]  # Note: board is accessed as [y][x]
+            
+            if cell_value == CellState.EMPTY.value:
+                color = (50, 50, 50)  # Empty cell
+            elif cell_value == CellState.SHIP.value:
+                color = (0, 255, 0)   # Ship
+            elif cell_value == CellState.HIT.value:
+                color = (255, 0, 0)   # Hit
+            else:
+                color = (0, 0, 255)   # Miss
+            
+            # Draw cell
+            pygame.draw.rect(screen, color, cell_rect)
+            pygame.draw.rect(screen, (100, 100, 100), cell_rect, 1)
+    
+    # Draw cursor if needed
+    if show_cursor and cursor_x >= 0 and cursor_y >= 0:
+        cursor_rect = pygame.Rect(
+            offset_x + cursor_x * cell_size - 2,
+            offset_y + cursor_y * cell_size - 2,
+            cell_size + 2,
+            cell_size + 2
+        )
+        pygame.draw.rect(screen, (255, 255, 0), cursor_rect, 2)
 
 def game_mode_select():
     """Screen to select game mode (AI or Player) and AI difficulty"""
@@ -403,11 +943,16 @@ def game_mode_select():
                         current_option = (current_option + 1) % len(options)
                         current_difficulty = 0  # Reset difficulty selection
                 elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                    # Start game with selected options
-                    if current_option == 0:  # VS AI
-                        game_screen(ai_mode=True, difficulty=ai_difficulties[current_difficulty])
-                    else:  # VS Player
-                        game_screen(ai_mode=False)
+                    # Launch ship placement screen with selected options
+                    ai_mode = (current_option == 0)
+                    difficulty = ai_difficulties[current_difficulty] if ai_mode else None
+                    
+                    # Create and run the ship placement screen
+                    placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
+                    player1_board, player2_board = placement_screen.run()
+                    
+                    # Start the game with the configured boards
+                    game_screen(ai_mode, difficulty, player1_board, player2_board)
                     running = False  # Exit mode selection after game ends
         
         # Check GPIO buttons
@@ -432,11 +977,16 @@ def game_mode_select():
                 current_difficulty = 0  # Reset difficulty selection
         
         if button_states['fire']:
-            # Start game with selected options
-            if current_option == 0:  # VS AI
-                game_screen(ai_mode=True, difficulty=ai_difficulties[current_difficulty])
-            else:  # VS Player
-                game_screen(ai_mode=False)
+            # Launch ship placement screen with selected options
+            ai_mode = (current_option == 0)
+            difficulty = ai_difficulties[current_difficulty] if ai_mode else None
+            
+            # Create and run the ship placement screen
+            placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
+            player1_board, player2_board = placement_screen.run()
+            
+            # Start the game with the configured boards
+            game_screen(ai_mode, difficulty, player1_board, player2_board)
             running = False  # Exit mode selection after game ends
         
         if button_states['mode']:
