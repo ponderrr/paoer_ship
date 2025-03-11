@@ -1,6 +1,7 @@
 import pygame
 import random
 import time
+import sys
 from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
 
@@ -129,6 +130,10 @@ class ShipPlacementScreen:
                 if self.ai_mode or self.current_player == 2:
                     self.placement_complete = True
                 else:
+                    # Show player transition screen before moving to player 2
+                    self.show_player_transition_screen()
+                    # Show player 2 setup screen
+                    self.show_player_setup_screen(2)
                     # Move to player 2 setup
                     self.current_player = 2
                     self.current_ship_index = 0
@@ -412,6 +417,114 @@ class ShipPlacementScreen:
         reset_text = self.info_font.render("Reset All Ships", True, reset_color)
         reset_rect = reset_text.get_rect(center=(self.width // 2, self.height // 2 + 60))
         self.screen.blit(reset_text, reset_rect)
+        
+    def show_player_setup_screen(self, player_number):
+        """
+        Show an introductory screen for a player to prepare for ship placement
+        
+        Args:
+            player_number (int): Player number (1 or 2)
+        """
+        # Fill screen with a dark background
+        self.screen.fill(self.BLACK)
+        
+        # Draw title
+        title = self.title_font.render(f"PLAYER {player_number} SHIP PLACEMENT", True, self.WHITE)
+        title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
+        self.screen.blit(title, title_rect)
+        
+        # Draw messages
+        message1 = self.info_font.render(f"Player {player_number}, get ready to place your ships!", True, self.LIGHT_BLUE)
+        message1_rect = message1.get_rect(center=(self.width // 2, self.height // 2 - 30))
+        self.screen.blit(message1, message1_rect)
+        
+        # Draw ships info
+        ships_text = self.info_font.render("You will place the following ships:", True, self.LIGHT_GRAY)
+        ships_text_rect = ships_text.get_rect(center=(self.width // 2, self.height // 2 + 10))
+        self.screen.blit(ships_text, ships_text_rect)
+        
+        y_offset = self.height // 2 + 40
+        for ship_name, ship_length in self.ship_types:
+            ship_info = self.info_font.render(f"{ship_name} ({ship_length} spaces)", True, self.LIGHT_GRAY)
+            ship_info_rect = ship_info.get_rect(center=(self.width // 2, y_offset))
+            self.screen.blit(ship_info, ship_info_rect)
+            y_offset += 25
+        
+        # Draw continue prompt
+        prompt = self.info_font.render("Press FIRE button to start placement", True, self.LIGHT_GRAY)
+        prompt_rect = prompt.get_rect(center=(self.width // 2, y_offset + 30))
+        self.screen.blit(prompt, prompt_rect)
+        
+        # Update display
+        pygame.display.flip()
+        
+        # Wait for fire button press
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        waiting = False
+            
+            # Check GPIO buttons
+            button_states = self.get_button_states()
+            if button_states['fire']:
+                waiting = False
+                
+            # Small delay to prevent CPU hogging
+            pygame.time.delay(100)
+    
+    def show_player_transition_screen(self):
+        """
+        Show a transition screen between player 1 and player 2 ship placement
+        This prevents player 2 from seeing player 1's ship placements
+        """
+        # Fill screen with a dark background
+        self.screen.fill(self.BLACK)
+        
+        # Draw title
+        title = self.title_font.render("PLAYER 1 SHIPS PLACED", True, self.WHITE)
+        title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
+        self.screen.blit(title, title_rect)
+        
+        # Draw message
+        message1 = self.info_font.render("Pass the device to Player 2", True, self.LIGHT_BLUE)
+        message1_rect = message1.get_rect(center=(self.width // 2, self.height // 2 - 30))
+        self.screen.blit(message1, message1_rect)
+        
+        message2 = self.info_font.render("Player 2 will now place their ships", True, self.LIGHT_GRAY)
+        message2_rect = message2.get_rect(center=(self.width // 2, self.height // 2 + 10))
+        self.screen.blit(message2, message2_rect)
+        
+        # Draw continue prompt
+        prompt = self.info_font.render("Press FIRE button to continue", True, self.LIGHT_GRAY)
+        prompt_rect = prompt.get_rect(center=(self.width // 2, self.height // 2 + 80))
+        self.screen.blit(prompt, prompt_rect)
+        
+        # Update display
+        pygame.display.flip()
+        
+        # Wait for fire button press
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        waiting = False
+            
+            # Check GPIO buttons
+            button_states = self.get_button_states()
+            if button_states['fire']:
+                waiting = False
+                
+            # Small delay to prevent CPU hogging
+            pygame.time.delay(100)
     
     def run(self):
         """
@@ -425,6 +538,9 @@ class ShipPlacementScreen:
         # Place AI ships if in AI mode
         if self.ai_mode:
             self.place_ai_ships()
+        else:
+            # Show player 1 setup screen
+            self.show_player_setup_screen(1)
         
         running = True
         while running and not self.placement_complete:
