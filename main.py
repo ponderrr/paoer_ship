@@ -1,6 +1,9 @@
 import pygame
 import sys
 import time
+import numpy as np
+import random
+from src.board.game_board import GameBoard, CellState
 from ship_placement_screen import ShipPlacementScreen
 
 # Try to import GPIO support
@@ -212,7 +215,6 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
     # Import necessary modules
     import numpy as np
     import random
-    from src.board.game_board import GameBoard, CellState
     from turn_transition_screen import TurnTransitionScreen
     from exit_confirmation import ExitConfirmation
     
