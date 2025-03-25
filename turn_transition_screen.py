@@ -65,14 +65,14 @@ class TurnTransitionScreen:
             
         return button_states
     
-    def show_turn_result(self, player, x, y, hit, ship_sunk=False):
+    def show_turn_result(self, player, row, col, hit, ship_sunk=False):
         """
         Show the result of a player's turn
         
         Args:
             player (int): The player who just took their turn (1 or 2)
-            x (int): Row coordinate of the shot
-            y (int): Column coordinate of the shot
+            row (int): Row coordinate of the shot (0-9)
+            col (int): Column coordinate of the shot (0-9)
             hit (bool): Whether the shot hit a ship
             ship_sunk (bool): Whether a ship was sunk by this shot
         """
@@ -88,8 +88,10 @@ class TurnTransitionScreen:
             title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
             self.screen.blit(title, title_rect)
             
-            # Draw coordinates of shot
-            shot_text = self.info_font.render(f"Shot at coordinate: {chr(65 + y)}{x + 1}", True, self.LIGHT_BLUE)
+            # THIS IS THE KEY FIX:
+            # Convert internal (row, col) coordinates to user-friendly display
+            # Column is letter (A-J), Row is number (1-10)
+            shot_text = self.info_font.render(f"Shot at coordinate: {chr(65 + col)}{row + 1}", True, self.LIGHT_BLUE)
             shot_rect = shot_text.get_rect(center=(self.width // 2, self.height // 2 - 30))
             self.screen.blit(shot_text, shot_rect)
             

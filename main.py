@@ -243,8 +243,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
     # Game state variables
     current_player = 1  # 1 for player 1, 2 for player 2
     cursor_x, cursor_y = 0, 0
-    player1_shots = set()  # Track player 1's shots (x, y)
-    player2_shots = set()  # Track player 2's shots (x, y)
+    player1_shots = set()  # Track player 1's shots (row, col)
+    player2_shots = set()  # Track player 2's shots (row, col)
     winner = None  # None, 1, or 2
     move_delay = 0  # Delay for cursor movement
     
@@ -259,24 +259,25 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
     player2_own_view = player2_board.get_display_state()
     
     # Firing handling functions
-    def process_shot(x, y, shooter_board, target_board, shots_set):
+    def process_shot(row, col, shooter_board, target_board, shots_set):
         """Process a shot from one player to another's board"""
-        if (x, y) in shots_set:
-            return False, False  # Shot already taken, no ship sunk
+        shot_coord = (row, col)
+        if shot_coord not in shots_set:
+            shots_set.add(shot_coord)
             
-        shots_set.add((x, y))
+            # Check if hit
+            hit = False
+            ship_sunk = False
+            
+            for ship in target_board.ships:
+                if ship.receive_hit(row, col):
+                    hit = True
+                    ship_sunk = ship.is_sunk()
+                    break
+                    
+            return hit, ship_sunk
         
-        # Check if hit
-        hit = False
-        ship_sunk = False
-        
-        for ship in target_board.ships:
-            if ship.receive_hit(x, y):
-                hit = True
-                ship_sunk = ship.is_sunk()
-                break
-                
-        return hit, ship_sunk
+        return False, False  # Shot already taken, no ship sunk
     
     def check_game_over():
         """Check if the game is over (all ships sunk)"""
@@ -354,6 +355,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             "Opponent's Board"
         )
         
+        # Comment out drawing player's own board - SOLUTION TO PROBLEM 2
+        """
         # Draw player's own board (with ships)
         # This is to see the status of their own ships
         if not winner:
@@ -369,6 +372,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 False,
                 "Your Board"
             )
+        """
         
         # Draw current player
         if not winner:
@@ -419,32 +423,36 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                             view_board = player2_view
                             next_player = 1
                         
-                        if (cursor_x, cursor_y) not in shots:
-                            hit, ship_sunk = process_shot(cursor_x, cursor_y, None, target_board, shots)
+                        # SOLUTION TO PROBLEM 1: Fix coordinate handling
+                        # cursor_x is column, cursor_y is row in the UI
+                        # but we need to store and check as (row, col) for consistency
+                        shot_coord = (cursor_y, cursor_x)  # Store as (row, col)
+                        
+                        if shot_coord not in shots:
+                            # When firing, pass row, col to match the game logic
+                            hit, ship_sunk = process_shot(cursor_y, cursor_x, None, target_board, shots)
                             
-                            # Update the view
+                            # When updating the view board, use [row][col] format
                             if hit:
-                                view_board[cursor_x][cursor_y] = CellState.HIT.value
+                                view_board[cursor_y][cursor_x] = CellState.HIT.value
                             else:
-                                view_board[cursor_x][cursor_y] = CellState.MISS.value
+                                view_board[cursor_y][cursor_x] = CellState.MISS.value
                             
-                            # Draw the updated board to show shot result before transition
+                            # Show the updated board before transition
                             pygame.display.flip()
                             
                             # Check if game over
                             new_winner = check_game_over()
                             if new_winner:
                                 winner = new_winner
-                                # Show the final shot before ending
                                 pygame.display.flip()
-                                # Wait a moment to show the winning shot
                                 time.sleep(1)
                             else:
-                                # Show the shot result and transition to next player
-                                transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                # When showing turn result, pass row, col in proper order
+                                transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
                                 transition_screen.show_player_ready_screen(next_player)
                                 
-                                # Switch to next player's turn
+                                # Switch to next player
                                 current_player = next_player
                                 cursor_x = 0
                                 cursor_y = 0
@@ -481,32 +489,36 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         view_board = player2_view
                         next_player = 1
                     
-                    if (cursor_x, cursor_y) not in shots:
-                        hit, ship_sunk = process_shot(cursor_x, cursor_y, None, target_board, shots)
+                    # SOLUTION TO PROBLEM 1: Fix coordinate handling
+                    # cursor_x is column, cursor_y is row in the UI
+                    # but we need to store and check as (row, col) for consistency
+                    shot_coord = (cursor_y, cursor_x)  # Store as (row, col)
+                    
+                    if shot_coord not in shots:
+                        # When firing, pass row, col to match the game logic
+                        hit, ship_sunk = process_shot(cursor_y, cursor_x, None, target_board, shots)
                         
-                        # Update the view
+                        # When updating the view board, use [row][col] format
                         if hit:
-                            view_board[cursor_x][cursor_y] = CellState.HIT.value
+                            view_board[cursor_y][cursor_x] = CellState.HIT.value
                         else:
-                            view_board[cursor_x][cursor_y] = CellState.MISS.value
+                            view_board[cursor_y][cursor_x] = CellState.MISS.value
                         
-                        # Draw the updated board to show shot result before transition
+                        # Show the updated board before transition
                         pygame.display.flip()
                         
                         # Check if game over
                         new_winner = check_game_over()
                         if new_winner:
                             winner = new_winner
-                            # Show the final shot before ending
                             pygame.display.flip()
-                            # Wait a moment to show the winning shot
                             time.sleep(1)
                         else:
-                            # Show the shot result and transition to next player
-                            transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                            # When showing turn result, pass row, col in proper order
+                            transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
                             transition_screen.show_player_ready_screen(next_player)
                             
-                            # Switch to next player's turn
+                            # Switch to next player
                             current_player = next_player
                             cursor_x = 0
                             cursor_y = 0
@@ -549,8 +561,8 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
                 cell_size - 2
             )
             
-            # Determine cell color based on state
-            cell_value = board[y][x]  # Note: board is accessed as [y][x]
+            # Access board using [row][col]
+            cell_value = board[y][x]
             
             if cell_value == CellState.EMPTY.value:
                 color = (50, 50, 50)  # Empty cell
