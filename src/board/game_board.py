@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from enum import Enum
-from src.board.ship import Ship  # Import Ship class
+from src.board.ship import Ship  
 
 class CellState(Enum):
     EMPTY = 0
@@ -13,7 +13,7 @@ class GameBoard:
     def __init__(self, size=10):
         self.size = size
         self.board = np.zeros((size, size), dtype=int)
-        self.ships = []  # Stores Ship objects
+        self.ships = []  
         self.pao_mode = False
         self.ai_targets = []
 
