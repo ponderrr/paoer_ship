@@ -1549,7 +1549,7 @@ def game_mode_select():
                             # Navigate main options
                             current_option = (current_option + 1) % len(options)
                             current_difficulty = 0  # Reset difficulty selection
-                   elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                    elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                         # Launch ship placement screen with selected options
                         ai_mode = (current_option == 0)
                         difficulty = ai_difficulties[current_difficulty] if ai_mode else None
@@ -1630,41 +1630,532 @@ def game_mode_select():
         logger.error(traceback.format_exc())
 
 def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_board=None):
-    """Game screen stub for debugging"""
-    logger.debug(f"Entering game_screen with ai_mode={ai_mode}, difficulty={difficulty}")
-    # This is a simplified version just for testing
-    try:
+    """
+    Game screen where the actual gameplay happens after ship placement
+    
+    Args:
+        ai_mode (bool): Whether playing against AI (True) or another player (False)
+        difficulty (str): AI difficulty level if ai_mode is True
+        player1_board: Game board for player 1
+        player2_board: Game board for player 2 (or AI)
+    """
+    # Import necessary modules
+    import numpy as np
+    import random
+    from turn_transition_screen import TurnTransitionScreen
+    from exit_confirmation import ExitConfirmation
+    from src.game.ai_opponent import AIOpponent, AIDifficulty
+    from src.utils.image_display import ImageDisplay
+    
+    clock = pygame.time.Clock()
+    font = pygame.font.Font(None, 36)
+    small_font = pygame.font.Font(None, 24)
+    
+    # Create empty boards if none were provided
+    if player1_board is None:
+        player1_board = GameBoard()
+    if player2_board is None:
+        player2_board = GameBoard()
+    
+    # Initialize transition screen and exit confirmation dialogs
+    transition_screen = TurnTransitionScreen(screen, gpio_handler)
+    exit_dialog = ExitConfirmation(screen, gpio_handler)
+    image_display = ImageDisplay(screen)
+    
+    # Initialize dual display handler for this game session
+    display_handler = DualDisplayHandler(screen, PORTABLE_SCREEN)
+    
+    # Set up AI opponent if in AI mode
+    ai_opponent = None
+    if ai_mode:
+        # Map difficulty string to enum
+        difficulty_map = {
+            "Easy": AIDifficulty.EASY,
+            "Medium": AIDifficulty.MEDIUM,
+            "Hard": AIDifficulty.HARD,
+            "Pao": AIDifficulty.PAO
+        }
+        
+        ai_difficulty = difficulty_map.get(difficulty, AIDifficulty.MEDIUM)
+        ai_opponent = AIOpponent(ai_difficulty, player1_board)
+        
+        # Use the AI's board as player 2's board
+        player2_board = ai_opponent.board
+    
+    # Set up game mode specific variables
+    game_mode_text = "VS AI" if ai_mode else "VS Player"
+    if ai_mode and difficulty:
+        game_mode_text += f" ({difficulty})"
+    pao_mode = ai_mode and difficulty == "Pao"
+    
+    # Game state variables
+    current_player = 1  # 1 for player 1, 2 for player 2 (or AI)
+    cursor_x, cursor_y = 0, 0
+    player1_shots = set()  # Track player 1's shots (x, y)
+    player2_shots = set()  # Track player 2's shots (x, y)
+    winner = None  # None, 1, or 2
+    move_delay = 0  # Delay for cursor movement
+    
+    # Display boards for each player (what they can see)
+    player1_view = np.zeros((10, 10), dtype=int)
+    player2_view = np.zeros((10, 10), dtype=int)
+    
+    # Get player's board state to display their own ships
+    player1_own_view = player1_board.get_display_state()
+    player2_own_view = player2_board.get_display_state()
+    
+    # Firing handling functions
+    def process_shot(x, y, shooter_board, target_board, shots_set):
+        """Process a shot from one player to another's board"""
+        if (x, y) in shots_set:
+            return False, False  # Shot already taken, no ship sunk
+            
+        shots_set.add((x, y))
+        
+        # Check if hit and if ship was sunk
+        hit = False
+        ship_sunk = False
+        
+        for ship in target_board.ships:
+            if ship.receive_hit(x, y):
+                hit = True
+                ship_sunk = ship.is_sunk()
+                break
+                
+        return hit, ship_sunk
+    
+    def check_game_over():
+        """Check if the game is over (all ships sunk)"""
+        player1_lost = all(ship.is_sunk() for ship in player1_board.ships)
+        player2_lost = all(ship.is_sunk() for ship in player2_board.ships)
+        
+        if player1_lost:
+            return 2  # Player 2 (or AI) wins
+        elif player2_lost:
+            return 1  # Player 1 wins
+        return None  # No winner yet
+    
+    # Show initial player screen
+    if not ai_mode:
+        transition_screen.show_player_ready_screen(current_player)
+        if PORTABLE_SCREEN:
+            display_handler.draw_waiting_screen(1)
+    
+    # Wait for next player message if two-player mode
+    current_message = ""
+    showing_message = False
+    message_timer = 0
+    showing_exit_dialog = False
+    pao_missed = False  # Track if player missed in Pao mode
+    
+    # Main game loop
+    running = True
+    while running:
+        current_time = pygame.time.get_ticks()
+        
+        # Fill background
         screen.fill(BLACK)
-        font = pygame.font.Font(None, 36)
-        text = font.render(f"Game Mode: {'AI' if ai_mode else 'Player'} - {difficulty if ai_mode else ''}", True, WHITE)
-        screen.blit(text, (WIDTH//2 - 180, HEIGHT//2))
         
-        back_text = font.render("Press any key to return to menu", True, WHITE)
-        screen.blit(back_text, (WIDTH//2 - 180, HEIGHT//2 + 50))
+        # Draw game mode
+        mode_text = font.render(game_mode_text, True, WHITE)
+        screen.blit(mode_text, (WIDTH - 200, 20))
         
-        pygame.display.flip()
+        # Draw exit option
+        exit_text = small_font.render("Press MODE to exit", True, LIGHT_GRAY)
+        screen.blit(exit_text, (20, HEIGHT - 30))
         
-        # Wait for a key press or button press
-        waiting = True
-        while waiting:
-            for event in pygame.event.get():
-                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    waiting = False
-                elif event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
+        # Handle exit confirmation dialog
+        if showing_exit_dialog:
+            if exit_dialog.show():
+                running = False  # Exit to main menu
+            showing_exit_dialog = False
+            continue  # Skip the rest of the loop iteration after dialog
+        
+        # Determine whose turn it is and which board to display
+        if current_player == 1:
+            # Player 1's turn - show player 2's board with player 1's shots
+            active_board = player2_board
+            view_board = player1_view
+            shots = player1_shots
             
-            # Check for GPIO button presses
+            # Also show player 1's board with their ships
+            own_board = player1_own_view
+        else:
+            # Player 2's turn - show player 1's board with player 2's shots
+            active_board = player1_board
+            view_board = player2_view
+            shots = player2_shots
+            
+            # Also show player 2's board with their ships
+            own_board = player2_own_view
+        
+        # Draw opponent board (with shots but not ships)
+        # This is the board the current player is firing at
+        draw_board(
+            screen, 
+            font, 
+            view_board, 
+            150, 
+            80, 
+            30, 
+            cursor_x if current_player == 1 else -1,  # Only show cursor for human player
+            cursor_y if current_player == 1 else -1,
+            current_player == 1,  # Show cursor only for player 1
+            "Opponent's Board"
+        )
+        
+        # Draw player's own board (with ships)
+        # This is to see the status of their own ships
+        if not winner:
+            draw_board(
+                screen,
+                font,
+                own_board,
+                400,
+                80,
+                25,  # Smaller cell size for own board
+                -1,  # No cursor on own board
+                -1,
+                False,
+                "Your Board"
+            )
+        
+        # Draw current player
+        if not winner:
+            if current_player == 1 or not ai_mode:
+                player_text = font.render(f"Player {current_player}'s Turn", True, WHITE)
+            else:
+                player_text = font.render("AI's Turn", True, WHITE)
+            screen.blit(player_text, (20, 20))
+        
+        # Draw status message
+        if winner:
+            if winner == 1:
+                winner_text = font.render("You Win!", True, (255, 215, 0))
+            elif ai_mode:
+                winner_text = font.render("AI Wins!", True, (255, 0, 0))
+            else:
+                winner_text = font.render(f"Player {winner} Wins!", True, (255, 215, 0))
+            
+            screen.blit(winner_text, (WIDTH // 2 - 100, HEIGHT - 100))
+            
+            restart_text = small_font.render("Press MODE to return to menu", True, WHITE)
+            screen.blit(restart_text, (WIDTH // 2 - 120, HEIGHT - 60))
+        else:
+            if current_player == 1:
+                status_text = small_font.render("Press FIRE to shoot", True, WHITE)
+                screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
+            else:
+                status_text = small_font.render("AI is thinking...", True, WHITE)
+                screen.blit(status_text, (WIDTH // 2 - 70, HEIGHT - 40))
+        
+        # Process events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                sys.exit()
+                
+            elif event.type == pygame.KEYDOWN and not showing_message:
+                if event.key == pygame.K_ESCAPE or event.key == pygame.K_TAB:
+                    showing_exit_dialog = True
+                
+                if not winner and current_player == 1:  # Only process player 1 input during their turn
+                    if event.key == pygame.K_UP and cursor_y > 0:
+                        cursor_y -= 1
+                    elif event.key == pygame.K_DOWN and cursor_y < 9:
+                        cursor_y += 1
+                    elif event.key == pygame.K_LEFT and cursor_x > 0:
+                        cursor_x -= 1
+                    elif event.key == pygame.K_RIGHT and cursor_x < 9:
+                        cursor_x += 1
+                    elif event.key == pygame.K_SPACE:
+                        # Player 1 fires
+                        if (cursor_x, cursor_y) not in player1_shots:
+                            hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
+                            
+                            # Update the view
+                            if hit:
+                                player1_view[cursor_x][cursor_y] = CellState.HIT.value
+                            else:
+                                player1_view[cursor_x][cursor_y] = CellState.MISS.value
+                                
+                                # For Pao mode, player immediately loses if they miss
+                                if pao_mode:
+                                    pao_missed = True
+                                    winner = 2  # AI wins
+                                    # Show miss before ending
+                                    pygame.display.flip()
+                                    time.sleep(1)
+                                    # Display Pao image
+                                    image_display.display_pao_image(5.0)
+                                    continue
+                            
+                            # For Player vs Player mode, update the portable display
+                            if not ai_mode and PORTABLE_SCREEN:
+                                # Show shot result first
+                                pygame.display.flip()
+                                time.sleep(1)  # Brief delay to show shot result
+                                
+                                # Calculate hits for display
+                                player1_hits = set()
+                                for shot_x, shot_y in player1_shots:
+                                    for ship in player2_board.ships:
+                                        ship_coords = get_ship_coordinates(ship)
+                                        if (shot_x, shot_y) in ship_coords:
+                                            player1_hits.add((shot_x, shot_y))
+                                
+                                # Show result before transitioning
+                                pygame.display.flip()
+                                transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                
+                                # Show the opponent's board with hit on portable display
+                                display_handler.draw_board_on_portable(
+                                    player2_board.get_display_state(),
+                                    player1_shots,
+                                    player1_hits,
+                                    "Opponent's Board"
+                                )
+                                
+                                # Clear portable display after brief delay
+                                time.sleep(2)
+                                display_handler.clear_portable_screen()
+                                
+                                # Show waiting screen for next player
+                                display_handler.draw_waiting_screen(2)
+                                
+                                # Show player transition on main screen
+                                transition_screen.show_player_ready_screen(2)
+                                
+                                # Show player 2's ships on portable display
+                                handle_portable_display_transition(
+                                    display_handler,
+                                    2,  # Next player is 2
+                                    player1_board,
+                                    player2_board,
+                                    player1_shots,
+                                    player2_shots
+                                )
+                            else:
+                                # Draw the updated board to show shot result before transition
+                                pygame.display.flip()
+                                
+                                # Check if game over
+                                new_winner = check_game_over()
+                                if new_winner:
+                                    winner = new_winner
+                                    # Show the final shot before ending
+                                    pygame.display.flip()
+                                    # Wait a moment to show the winning shot
+                                    time.sleep(1)
+                                else:
+                                    # Show the shot result
+                                    if not ai_mode:
+                                        # Show transition screens in player vs player mode
+                                        transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                        transition_screen.show_player_ready_screen(2)
+                                    else:
+                                        # Just show result briefly in AI mode
+                                        pygame.display.flip()
+                                        time.sleep(1)
+                                    
+                                    # Switch to next player's turn
+                                    current_player = 2
+        
+        # Check GPIO buttons if not showing message
+        if not showing_message:
             button_states = gpio_handler.get_button_states()
-            if any(button_states.values()):
-                waiting = False
             
-            # Small delay to prevent CPU hogging
-            time.sleep(0.01)
-        logger.debug("Exiting game_screen")
-    except Exception as e:
-        logger.error(f"Error in game_screen: {e}")
-        logger.error(traceback.format_exc())
+            # Check for exit button
+            if button_states['mode']:
+                showing_exit_dialog = True
+            
+            # Only process gameplay if no win condition yet and it's player 1's turn
+            if not winner and current_player == 1:
+                if button_states['up'] and cursor_y > 0:
+                    cursor_y -= 1
+                if button_states['down'] and cursor_y < 9:
+                    cursor_y += 1
+                if button_states['left'] and cursor_x > 0:
+                    cursor_x -= 1
+                if button_states['right'] and cursor_x < 9:
+                    cursor_x += 1
+                    
+                if button_states['fire']:
+                    # Player 1 fires
+                    if (cursor_x, cursor_y) not in player1_shots:
+                        hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
+                        
+                        # Update the view
+                        if hit:
+                            player1_view[cursor_x][cursor_y] = CellState.HIT.value
+                        else:
+                            player1_view[cursor_x][cursor_y] = CellState.MISS.value
+                            
+                            # For Pao mode, player immediately loses if they miss
+                            if pao_mode:
+                                pao_missed = True
+                                winner = 2  # AI wins
+                                # Show miss before ending
+                                pygame.display.flip()
+                                time.sleep(1)
+                                # Display Pao image
+                                image_display.display_pao_image(5.0)
+                                continue
+                        
+                        # For Player vs Player mode, update the portable display
+                        if not ai_mode and PORTABLE_SCREEN:
+                            # Show shot result first
+                            pygame.display.flip()
+                            time.sleep(1)  # Brief delay to show shot result
+                            
+                            # Calculate hits for display
+                            player1_hits = set()
+                            for shot_x, shot_y in player1_shots:
+                                for ship in player2_board.ships:
+                                    ship_coords = get_ship_coordinates(ship)
+                                    if (shot_x, shot_y) in ship_coords:
+                                        player1_hits.add((shot_x, shot_y))
+                            
+                            # Show transition screen with result
+                            transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                            
+                            # Show the opponent's board with hit on portable display
+                            display_handler.draw_board_on_portable(
+                                player2_board.get_display_state(),
+                                player1_shots,
+                                player1_hits,
+                                "Opponent's Board"
+                            )
+                            
+                            # Clear portable display after brief delay
+                            time.sleep(2)
+                            display_handler.clear_portable_screen()
+                            
+                            # Show waiting screen for next player
+                            display_handler.draw_waiting_screen(2)
+                            
+                            # Show player transition on main screen
+                            transition_screen.show_player_ready_screen(2)
+                            
+                            # Show player 2's ships on portable display
+                            handle_portable_display_transition(
+                                display_handler,
+                                2,  # Next player is 2
+                                player1_board,
+                                player2_board,
+                                player1_shots,
+                                player2_shots
+                            )
+                        else:
+                            # Draw the updated board to show shot result before transition
+                            pygame.display.flip()
+                            
+                            # Check if game over
+                            new_winner = check_game_over()
+                            if new_winner:
+                                winner = new_winner
+                                # Show the final shot before ending
+                                pygame.display.flip()
+                                # Wait a moment to show the winning shot
+                                time.sleep(1)
+                            else:
+                                # Show the shot result
+                                if not ai_mode:
+                                    # Show transition screens in player vs player mode
+                                    transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                    transition_screen.show_player_ready_screen(2)
+                                else:
+                                    # Just show result briefly in AI mode
+                                    pygame.display.flip()
+                                    time.sleep(1)
+                                
+                                # Switch to next player's turn
+                                current_player = 2
+            elif winner:
+                # If there's a winner, pressing any button will return to menu
+                if any(button_states.values()):
+                    running = False  # Return to main menu
+        
+        # AI logic - if it's the AI's turn
+        if ai_mode and current_player == 2 and not winner:
+            # Add slight delay for AI "thinking"
+            if ai_opponent.difficulty == AIDifficulty.EASY:
+                thinking_time = random.uniform(0.5, 1.0)
+            elif ai_opponent.difficulty == AIDifficulty.MEDIUM:
+                thinking_time = random.uniform(1.0, 1.5)
+            elif ai_opponent.difficulty == AIDifficulty.HARD:
+                thinking_time = random.uniform(1.5, 2.0)
+            else:  # PAO mode
+                thinking_time = random.uniform(0.5, 1.0)  # Faster in Pao mode
+            
+            time.sleep(thinking_time)
+            
+            # Get AI's shot from the AI opponent
+            x, y = ai_opponent.get_shot()
+            
+            # Process the shot
+            hit, ship_sunk = process_shot(x, y, None, player1_board, player2_shots)
+            
+            # Update the view
+            if hit:
+                player2_view[x][y] = CellState.HIT.value
+                player1_own_view[x][y] = CellState.HIT.value  # Mark hit on player's view of their board
+            else:
+                player2_view[x][y] = CellState.MISS.value
+                player1_own_view[x][y] = CellState.MISS.value  # Mark miss on player's view of their board
+            
+            # Update AI's knowledge of the shot
+            ai_opponent.process_shot_result(x, y, hit, ship_sunk)
+            
+            # Update the display to show the AI's shot
+            # Temporarily show cursor at AI's shot position
+            cursor_backup = (cursor_x, cursor_y)
+            cursor_x, cursor_y = x, y
+            
+            # Redraw to show the AI's shot position and result
+            screen.fill(BLACK)
+            
+            # Make the coordinate display human-readable (A-J for columns, 1-10 for rows)
+            human_coords = f"{chr(65 + y)}{x + 1}"
+            
+            # Draw the main board (player's) showing where AI fired
+            draw_board(screen, font, player1_own_view, 150, 80, 30, x, y, True, "Your Board")
+            
+            # Draw AI's board (showing player shots)
+            draw_board(screen, font, player1_view, 400, 80, 25, -1, -1, False, "AI's Board")
+            
+            # Draw status text with human-readable coordinates
+            if hit:
+                status_text = small_font.render(f"AI fired at {human_coords}: HIT!", True, (255, 0, 0))
+            else:
+                status_text = small_font.render(f"AI fired at {human_coords}: MISS", True, WHITE)
+            
+            screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
+            
+            # Update display to show shot
+            pygame.display.flip()
+            
+            # Delay to show the AI's move
+            time.sleep(2)
+            
+            # Restore cursor
+            cursor_x, cursor_y = cursor_backup[0], cursor_backup[1]
+            
+            # Check if game over
+            new_winner = check_game_over()
+            if new_winner:
+                winner = new_winner
+                if pao_mode and winner == 2:
+                    # Show Pao image on AI victory
+                    image_display.display_pao_image(5.0)
+            else:
+                # Switch back to player's turn
+                current_player = 1
+        
+        # Update display
+        pygame.display.flip()
+        clock.tick(30)
 
 def main():
     try:
