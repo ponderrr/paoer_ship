@@ -3,10 +3,14 @@ import sys
 import time
 import numpy as np
 import random
+import os
 from src.board.game_board import GameBoard, CellState
 from ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
+from turn_transition_screen import TurnTransitionScreen
+from exit_confirmation import ExitConfirmation
+from src.hardware.dual_display_handler import DualDisplayHandler
 
 # Try to import GPIO support
 try:
@@ -18,10 +22,52 @@ except ImportError:
 # Initialize Pygame
 pygame.init()
 
-# Screen settings - smaller for better performance
-WIDTH, HEIGHT = 640, 480
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Pao'er Ship")
+def initialize_dual_screens():
+    """Initialize both the main and portable screens"""
+    # Initialize main display (HDMI)
+    os.environ["SDL_VIDEODRIVER"] = "x11"
+    os.environ["DISPLAY"] = ":0.0"  # Main display
+    
+    # Screen settings
+    WIDTH, HEIGHT = 640, 480
+    main_screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Pao'er Ship")
+    
+    # Try to initialize portable display
+    portable_screen = None
+    try:
+        # Save current display value
+        current_display = os.environ.get("DISPLAY")
+        
+        # Attempt to connect to second display
+        os.environ["DISPLAY"] = ":0.1"  # Second display
+        
+        # Create a second Pygame window on the portable monitor
+        # Use a smaller resolution appropriate for the portable screen
+        portable_screen = pygame.Surface((480, 320))  # Create a virtual surface as fallback
+        
+        try:
+            # Try to create actual second window
+            portable_screen = pygame.display.set_mode((480, 320))
+            pygame.display.set_caption("Pao'er Ship - Player View")
+            print("Successfully initialized portable monitor!")
+        except Exception as e:
+            print(f"Could not create second window: {e}")
+            print("Using virtual surface for portable display")
+        
+        # Restore original display setting
+        if current_display:
+            os.environ["DISPLAY"] = current_display
+    except Exception as e:
+        print(f"Error setting up portable display: {e}")
+        # Create a dummy surface as fallback
+        portable_screen = pygame.Surface((480, 320))
+        print("Using virtual surface for portable display")
+    
+    return main_screen, portable_screen, WIDTH, HEIGHT
+
+# Initialize screens
+screen, PORTABLE_SCREEN, WIDTH, HEIGHT = initialize_dual_screens()
 
 # Colors
 WHITE = (255, 255, 255)
@@ -141,6 +187,9 @@ class GPIOHandler:
         
         return actions
 
+# Create dual display handler
+display_handler = DualDisplayHandler(screen, PORTABLE_SCREEN)
+
 # Simple button class
 class Button:
     def __init__(self, x, y, width, height, text, action):
@@ -168,6 +217,79 @@ class Button:
     def check_click(self, pos):
         if self.rect.collidepoint(pos):
             self.action()
+
+def handle_portable_display_transition(display_handler, current_player, player1_board, player2_board, player1_shots, player2_shots):
+    """
+    Handle the transition of the portable display when the ROTATE button is pressed
+    
+    Args:
+        display_handler: The dual display handler
+        current_player: Current player (1 or 2)
+        player1_board: Player 1's game board
+        player2_board: Player 2's game board
+        player1_shots: Set of shots fired by player 1
+        player2_shots: Set of shots fired by player 2
+    """
+    # Determine which player's ships to show based on whose turn it is
+    if current_player == 1:
+        # Show player 1's board (it's their turn)
+        player_board = player1_board
+        opponent_shots = player2_shots
+        board_title = "Your Ships - Player 1"
+        next_player = 2
+    else:
+        # Show player 2's board (it's their turn)
+        player_board = player2_board
+        opponent_shots = player1_shots
+        board_title = "Your Ships - Player 2"
+        next_player = 1
+    
+    # Calculate hits on player's ships
+    hits = set()
+    for x, y in opponent_shots:
+        # Check if this shot hit any of the player's ships
+        for ship in player_board.ships:
+            ship_coords = []
+            ship_x, ship_y = ship.position
+            for i in range(ship.length):
+                if ship.orientation == "horizontal":
+                    ship_coords.append((ship_x, ship_y + i))
+                else:
+                    ship_coords.append((ship_x + i, ship_y))
+            
+            if (x, y) in ship_coords:
+                hits.add((x, y))
+                break
+    
+    # Show player's board with shots on portable display
+    display_handler.draw_board_on_portable(
+        player_board.get_display_state(),
+        opponent_shots,
+        hits,
+        board_title
+    )
+    
+    # Wait for ROTATE button to continue
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        
+        # Check for ROTATE button press (or any key for debugging)
+        keys = pygame.key.get_pressed()
+        button_states = gpio_handler.get_button_states()
+        
+        if button_states['rotate'] or keys[pygame.K_r]:
+            waiting = False
+        
+        # Small delay to prevent CPU hogging
+        pygame.time.delay(100)
+    
+    # Clear portable display and show waiting screen for next player
+    display_handler.clear_portable_screen()
+    display_handler.draw_waiting_screen(next_player)
 
 # Forward declarations for functions that reference each other
 def quit_game():
@@ -204,6 +326,19 @@ def settings_screen():
         # Small delay to prevent CPU hogging
         time.sleep(0.01)
 
+def get_ship_coordinates(ship):
+    """Get all coordinates occupied by a ship"""
+    x, y = ship.position
+    coordinates = []
+    
+    for i in range(ship.length):
+        if ship.orientation == "horizontal":
+            coordinates.append((x, y + i))
+        else:
+            coordinates.append((x + i, y))
+    
+    return coordinates
+
 def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_board=None):
     """
     Game screen where the actual gameplay happens after ship placement
@@ -236,6 +371,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
     transition_screen = TurnTransitionScreen(screen, gpio_handler)
     exit_dialog = ExitConfirmation(screen, gpio_handler)
     image_display = ImageDisplay(screen)
+    
+    # Initialize dual display handler for this game session
+    display_handler = DualDisplayHandler(screen, PORTABLE_SCREEN)
     
     # Set up AI opponent if in AI mode
     ai_opponent = None
@@ -310,6 +448,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
     # Show initial player screen
     if not ai_mode:
         transition_screen.show_player_ready_screen(current_player)
+        if PORTABLE_SCREEN:
+            display_handler.draw_waiting_screen(1)
     
     # Wait for next player message if two-player mode
     current_message = ""
@@ -458,33 +598,79 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     pygame.display.flip()
                                     time.sleep(1)
                                     # Display Pao image
-                                    image_display.display_pao_image()
+                                    image_display.display_pao_image(5.0)
                                     continue
                             
-                            # Draw the updated board to show shot result before transition
-                            pygame.display.flip()
-                            
-                            # Check if game over
-                            new_winner = check_game_over()
-                            if new_winner:
-                                winner = new_winner
-                                # Show the final shot before ending
+                            # For Player vs Player mode, update the portable display
+                            if not ai_mode and PORTABLE_SCREEN:
+                                # Show shot result first
                                 pygame.display.flip()
-                                # Wait a moment to show the winning shot
-                                time.sleep(1)
-                            else:
-                                # Show the shot result
-                                if not ai_mode:
-                                    # Show transition screens in player vs player mode
-                                    transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
-                                    transition_screen.show_player_ready_screen(2)
-                                else:
-                                    # Just show result briefly in AI mode
-                                    pygame.display.flip()
-                                    time.sleep(1)
+                                time.sleep(1)  # Brief delay to show shot result
                                 
-                                # Switch to next player's turn
-                                current_player = 2
+                                # Calculate hits for display
+                                player1_hits = set()
+                                for shot_x, shot_y in player1_shots:
+                                    for ship in player2_board.ships:
+                                        ship_coords = get_ship_coordinates(ship)
+                                        if (shot_x, shot_y) in ship_coords:
+                                            player1_hits.add((shot_x, shot_y))
+                                
+                                # Show result before transitioning
+                                pygame.display.flip()
+                                transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                
+                                # Show the opponent's board with hit on portable display
+                                display_handler.draw_board_on_portable(
+                                    player2_board.get_display_state(),
+                                    player1_shots,
+                                    player1_hits,
+                                    "Opponent's Board"
+                                )
+                                
+                                # Clear portable display after brief delay
+                                time.sleep(2)
+                                display_handler.clear_portable_screen()
+                                
+                                # Show waiting screen for next player
+                                display_handler.draw_waiting_screen(2)
+                                
+                                # Show player transition on main screen
+                                transition_screen.show_player_ready_screen(2)
+                                
+                                # Show player 2's ships on portable display
+                                handle_portable_display_transition(
+                                    display_handler,
+                                    2,  # Next player is 2
+                                    player1_board,
+                                    player2_board,
+                                    player1_shots,
+                                    player2_shots
+                                )
+                            else:
+                                # Draw the updated board to show shot result before transition
+                                pygame.display.flip()
+                                
+                                # Check if game over
+                                new_winner = check_game_over()
+                                if new_winner:
+                                    winner = new_winner
+                                    # Show the final shot before ending
+                                    pygame.display.flip()
+                                    # Wait a moment to show the winning shot
+                                    time.sleep(1)
+                                else:
+                                    # Show the shot result
+                                    if not ai_mode:
+                                        # Show transition screens in player vs player mode
+                                        transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                        transition_screen.show_player_ready_screen(2)
+                                    else:
+                                        # Just show result briefly in AI mode
+                                        pygame.display.flip()
+                                        time.sleep(1)
+                                    
+                                    # Switch to next player's turn
+                                    current_player = 2
         
         # Check GPIO buttons if not showing message
         if not showing_message:
@@ -524,33 +710,78 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 pygame.display.flip()
                                 time.sleep(1)
                                 # Display Pao image
-                                image_display.display_pao_image()
+                                image_display.display_pao_image(5.0)
                                 continue
                         
-                        # Draw the updated board to show shot result before transition
-                        pygame.display.flip()
-                        
-                        # Check if game over
-                        new_winner = check_game_over()
-                        if new_winner:
-                            winner = new_winner
-                            # Show the final shot before ending
+                        # For Player vs Player mode, update the portable display
+                        if not ai_mode and PORTABLE_SCREEN:
+                            # Show shot result first
                             pygame.display.flip()
-                            # Wait a moment to show the winning shot
-                            time.sleep(1)
-                        else:
-                            # Show the shot result
-                            if not ai_mode:
-                                # Show transition screens in player vs player mode
-                                transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
-                                transition_screen.show_player_ready_screen(2)
-                            else:
-                                # Just show result briefly in AI mode
-                                pygame.display.flip()
-                                time.sleep(1)
+                            time.sleep(1)  # Brief delay to show shot result
                             
-                            # Switch to next player's turn
-                            current_player = 2
+                            # Calculate hits for display
+                            player1_hits = set()
+                            for shot_x, shot_y in player1_shots:
+                                for ship in player2_board.ships:
+                                    ship_coords = get_ship_coordinates(ship)
+                                    if (shot_x, shot_y) in ship_coords:
+                                        player1_hits.add((shot_x, shot_y))
+                            
+                            # Show transition screen with result
+                            transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                            
+                            # Show the opponent's board with hit on portable display
+                            display_handler.draw_board_on_portable(
+                                player2_board.get_display_state(),
+                                player1_shots,
+                                player1_hits,
+                                "Opponent's Board"
+                            )
+                            
+                            # Clear portable display after brief delay
+                            time.sleep(2)
+                            display_handler.clear_portable_screen()
+                            
+                            # Show waiting screen for next player
+                            display_handler.draw_waiting_screen(2)
+                            
+                            # Show player transition on main screen
+                            transition_screen.show_player_ready_screen(2)
+                            
+                            # Show player 2's ships on portable display
+                            handle_portable_display_transition(
+                                display_handler,
+                                2,  # Next player is 2
+                                player1_board,
+                                player2_board,
+                                player1_shots,
+                                player2_shots
+                            )
+                        else:
+                            # Draw the updated board to show shot result before transition
+                            pygame.display.flip()
+                            
+                            # Check if game over
+                            new_winner = check_game_over()
+                            if new_winner:
+                                winner = new_winner
+                                # Show the final shot before ending
+                                pygame.display.flip()
+                                # Wait a moment to show the winning shot
+                                time.sleep(1)
+                            else:
+                                # Show the shot result
+                                if not ai_mode:
+                                    # Show transition screens in player vs player mode
+                                    transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
+                                    transition_screen.show_player_ready_screen(2)
+                                else:
+                                    # Just show result briefly in AI mode
+                                    pygame.display.flip()
+                                    time.sleep(1)
+                                
+                                # Switch to next player's turn
+                                current_player = 2
             elif winner:
                 # If there's a winner, pressing any button will return to menu
                 if any(button_states.values()):
@@ -558,7 +789,19 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         
         # AI logic - if it's the AI's turn
         if ai_mode and current_player == 2 and not winner:
-            # Get AI's shot
+            # Add slight delay for AI "thinking"
+            if ai_opponent.difficulty == AIDifficulty.EASY:
+                thinking_time = random.uniform(0.5, 1.0)
+            elif ai_opponent.difficulty == AIDifficulty.MEDIUM:
+                thinking_time = random.uniform(1.0, 1.5)
+            elif ai_opponent.difficulty == AIDifficulty.HARD:
+                thinking_time = random.uniform(1.5, 2.0)
+            else:  # PAO mode
+                thinking_time = random.uniform(0.5, 1.0)  # Faster in Pao mode
+            
+            time.sleep(thinking_time)
+            
+            # Get AI's shot from the AI opponent
             x, y = ai_opponent.get_shot()
             
             # Process the shot
@@ -567,8 +810,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             # Update the view
             if hit:
                 player2_view[x][y] = CellState.HIT.value
+                player1_own_view[x][y] = CellState.HIT.value  # Mark hit on player's view of their board
             else:
                 player2_view[x][y] = CellState.MISS.value
+                player1_own_view[x][y] = CellState.MISS.value  # Mark miss on player's view of their board
             
             # Update AI's knowledge of the shot
             ai_opponent.process_shot_result(x, y, hit, ship_sunk)
@@ -580,12 +825,22 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             
             # Redraw to show the AI's shot position and result
             screen.fill(BLACK)
-            draw_board(screen, font, player2_view, 150, 80, 30, x, y, True, "AI's Shot")
-            draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
             
-            # Draw status
-            status_text = small_font.render(f"AI fired at {chr(65 + y)}{x + 1}: {'HIT!' if hit else 'MISS'}", True, 
-                                         (255, 0, 0) if hit else (255, 255, 255))
+            # Make the coordinate display human-readable (A-J for columns, 1-10 for rows)
+            human_coords = f"{chr(65 + y)}{x + 1}"
+            
+            # Draw the main board (player's) showing where AI fired
+            draw_board(screen, font, player1_own_view, 150, 80, 30, x, y, True, "Your Board")
+            
+            # Draw AI's board (showing player shots)
+            draw_board(screen, font, player1_view, 400, 80, 25, -1, -1, False, "AI's Board")
+            
+            # Draw status text with human-readable coordinates
+            if hit:
+                status_text = small_font.render(f"AI fired at {human_coords}: HIT!", True, (255, 0, 0))
+            else:
+                status_text = small_font.render(f"AI fired at {human_coords}: MISS", True, WHITE)
+            
             screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
             
             # Update display to show shot
@@ -601,342 +856,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             new_winner = check_game_over()
             if new_winner:
                 winner = new_winner
+                if pao_mode and winner == 2:
+                    # Show Pao image on AI victory
+                    image_display.display_pao_image(5.0)
             else:
                 # Switch back to player's turn
                 current_player = 1
-        
-        # Update display
-        pygame.display.flip()
-        clock.tick(30)
-
-def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cursor_y, show_cursor, title=None):
-    """Helper function to draw a game board"""
-    # Draw title if provided
-    if title:
-        title_text = font.render(title, True, WHITE)
-        title_rect = title_text.get_rect(center=(offset_x + (10 * cell_size) // 2, offset_y - 30))
-        screen.blit(title_text, title_rect)
-    
-    # Draw column labels (A-J)
-    for i in range(10):
-        letter = chr(65 + i)
-        text = pygame.font.Font(None, 20).render(letter, True, WHITE)
-        screen.blit(text, (offset_x + i * cell_size + cell_size // 3, offset_y - 20))
-    
-    # Draw row labels (1-10)
-    for i in range(10):
-        number = str(i + 1)
-        text = pygame.font.Font(None, 20).render(number, True, WHITE)
-        screen.blit(text, (offset_x - 20, offset_y + i * cell_size + cell_size // 3))
-    
-    # Draw grid cells
-    for y in range(10):
-        for x in range(10):
-            cell_rect = pygame.Rect(
-                offset_x + x * cell_size,
-                offset_y + y * cell_size,
-                cell_size - 2,
-                cell_size - 2
-            )
-            
-            # Access board using [row][col]
-            cell_value = board[y][x]
-            
-            if cell_value == CellState.EMPTY.value:
-                color = (50, 50, 50)  # Empty cell
-            elif cell_value == CellState.SHIP.value:
-                color = (0, 255, 0)   # Ship
-            elif cell_value == CellState.HIT.value:
-                color = (255, 0, 0)   # Hit
-            else:
-                color = (0, 0, 255)   # Miss
-            
-            # Draw cell
-            pygame.draw.rect(screen, color, cell_rect)
-            pygame.draw.rect(screen, (100, 100, 100), cell_rect, 1)
-    
-    # Draw cursor if needed
-    if show_cursor and cursor_x >= 0 and cursor_y >= 0:
-        cursor_rect = pygame.Rect(
-            offset_x + cursor_x * cell_size - 2,
-            offset_y + cursor_y * cell_size - 2,
-            cell_size + 2,
-            cell_size + 2
-        )
-        pygame.draw.rect(screen, (255, 255, 0), cursor_rect, 2)
-
-def game_mode_select():
-    """Screen to select game mode (AI or Player) and AI difficulty"""
-    clock = pygame.time.Clock()
-    font = pygame.font.Font(None, 36)
-    small_font = pygame.font.Font(None, 28)
-    
-    # Menu options
-    options = ["VS AI", "VS Player"]
-    ai_difficulties = ["Easy", "Medium", "Hard", "Pao"]  # Added Pao mode
-    
-    # Selection state
-    current_option = 0  # 0 for VS AI, 1 for VS Player
-    current_difficulty = 0  # 0 for Easy, 1 for Medium, 2 for Hard, 3 for Pao
-    show_difficulty = False  # Only show difficulty options if AI is selected
-    
-    running = True
-    while running:
-        # Fill background
-        screen.fill(BLACK)
-        
-        # Draw title
-        title_text = font.render("Select Game Mode", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
-        screen.blit(title_text, title_rect)
-        
-        # Draw options
-        for i, option in enumerate(options):
-            color = LIGHT_BLUE if i == current_option else WHITE
-            option_text = font.render(option, True, color)
-            option_rect = option_text.get_rect(center=(WIDTH // 2, 200 + i * 60))
-            screen.blit(option_text, option_rect)
-            
-            # Draw highlight box around selected option
-            if i == current_option:
-                rect = pygame.Rect(option_rect.left - 10, option_rect.top - 5, 
-                                  option_rect.width + 20, option_rect.height + 10)
-                pygame.draw.rect(screen, color, rect, 2, border_radius=5)
-        
-        # Draw difficulty options if VS AI is selected
-        if current_option == 0:
-            difficulty_title = small_font.render("Select Difficulty:", True, WHITE)
-            screen.blit(difficulty_title, (WIDTH // 2 - 100, 320))
-            
-            for i, difficulty in enumerate(ai_difficulties):
-                # Special color for Pao mode
-                if difficulty == "Pao":
-                    color = (255, 0, 0) if i == current_difficulty else (255, 100, 100)
-                else:
-                    color = LIGHT_BLUE if i == current_difficulty else WHITE
-                
-                diff_text = small_font.render(difficulty, True, color)
-                diff_rect = diff_text.get_rect(center=(WIDTH // 2, 360 + i * 40))
-                screen.blit(diff_text, diff_rect)
-                
-                # Draw highlight box around selected difficulty
-                if i == current_difficulty:
-                    rect = pygame.Rect(diff_rect.left - 10, diff_rect.top - 5, 
-                                      diff_rect.width + 20, diff_rect.height + 10)
-                    pygame.draw.rect(screen, color, rect, 2, border_radius=5)
-            
-            # Add warning for Pao mode
-            if current_difficulty == 3:
-                warning_text = small_font.render("WARNING: Impossible difficulty!", True, (255, 0, 0))
-                warning_rect = warning_text.get_rect(center=(WIDTH // 2, 520))
-                screen.blit(warning_text, warning_rect)
-        
-        # Draw controls help
-        help_text = small_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 190, HEIGHT - 40))
-        
-        # Process events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                pygame.quit()
-                sys.exit()
-                
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.key == pygame.K_TAB:
-                    # Return to main menu
-                    running = False
-                elif event.key == pygame.K_UP:
-                    if current_option == 0 and current_difficulty > 0:
-                        # Navigate difficulty options
-                        current_difficulty -= 1
-                    else:
-                        # Navigate main options
-                        current_option = (current_option - 1) % len(options)
-                        current_difficulty = 0  # Reset difficulty selection
-                elif event.key == pygame.K_DOWN:
-                    if current_option == 0 and current_difficulty < len(ai_difficulties) - 1:
-                        # Navigate difficulty options
-                        current_difficulty += 1
-                    else:
-                        # Navigate main options
-                        current_option = (current_option + 1) % len(options)
-                        current_difficulty = 0  # Reset difficulty selection
-                elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                    # Launch ship placement screen with selected options
-                    ai_mode = (current_option == 0)
-                    difficulty = ai_difficulties[current_difficulty] if ai_mode else None
-                    
-                    # Create and run the ship placement screen
-                    placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
-                    player1_board, player2_board = placement_screen.run()
-                    
-                    # Start the game with the configured boards
-                    game_screen(ai_mode, difficulty, player1_board, player2_board)
-                    running = False  # Exit mode selection after game ends
-        
-        # Check GPIO buttons
-        button_states = gpio_handler.get_button_states()
-        
-        if button_states['up']:
-            if current_option == 0 and current_difficulty > 0:
-                # Navigate difficulty options
-                current_difficulty -= 1
-            else:
-                # Navigate main options
-                current_option = (current_option - 1) % len(options)
-                current_difficulty = 0  # Reset difficulty selection
-        
-        if button_states['down']:
-            if current_option == 0 and current_difficulty < len(ai_difficulties) - 1:
-                # Navigate difficulty options
-                current_difficulty += 1
-            else:
-                # Navigate main options
-                current_option = (current_option + 1) % len(options)
-                current_difficulty = 0  # Reset difficulty selection
-        
-        if button_states['fire']:
-            # Launch ship placement screen with selected options
-            ai_mode = (current_option == 0)
-            difficulty = ai_difficulties[current_difficulty] if ai_mode else None
-            
-            # Create and run the ship placement screen
-            placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
-            player1_board, player2_board = placement_screen.run()
-            
-            # Start the game with the configured boards
-            game_screen(ai_mode, difficulty, player1_board, player2_board)
-            running = False  # Exit mode selection after game ends
-        
-        if button_states['mode']:
-            running = False  # Return to main menu
-        
-        # Update display
-        pygame.display.flip()
-        clock.tick(30)
-
-def main_menu():
-    # Set up menu buttons
-    button_width = 200
-    button_height = 50
-    center_x = (WIDTH - button_width) // 2
-    start_y = 200
-    spacing = 70
-
-    buttons = [
-        Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
-        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
-        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
-    ]
-    
-    # Default selection
-    current_selection = 0
-    buttons[current_selection].selected = True
-
-    clock = pygame.time.Clock()
-    
-    # Main menu loop
-    running = True
-    while running:
-        # Fill background
-        screen.fill(BLACK)
-        
-        # Draw title
-        title_text = title_font.render("Pao'er Ship", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
-        screen.blit(title_text, title_rect)
-        
-        # Process events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            
-            # Mouse events
-            elif event.type == pygame.MOUSEMOTION:
-                for button in buttons:
-                    button.check_hover(event.pos)
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for button in buttons:
-                    button.check_click(event.pos)
-            
-            # Keyboard navigation
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    # Clear selections
-                    for button in buttons:
-                        button.selected = False
-                    # Move selection up
-                    current_selection = (current_selection - 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                
-                elif event.key == pygame.K_DOWN:
-                    # Clear selections
-                    for button in buttons:
-                        button.selected = False
-                    # Move selection down
-                    current_selection = (current_selection + 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                
-                elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                    # Activate selected button
-                    buttons[current_selection].action()
-                
-                elif event.key == pygame.K_ESCAPE:
-                    running = False
-        
-        # Check for GPIO button presses
-        button_states = gpio_handler.get_button_states()
-        
-        if button_states['up']:
-            # Clear selections
-            for button in buttons:
-                button.selected = False
-            # Move selection up
-            current_selection = (current_selection - 1) % len(buttons)
-            buttons[current_selection].selected = True
-        
-        if button_states['down']:
-            # Clear selections
-            for button in buttons:
-                button.selected = False
-            # Move selection down
-            current_selection = (current_selection + 1) % len(buttons)
-            buttons[current_selection].selected = True
-        
-        if button_states['fire']:
-            # Activate selected button
-            buttons[current_selection].action()
-        
-        # Update and draw buttons
-        for button in buttons:
-            button.update()
-            button.draw(screen)
-        
-        # Display controls help
-        help_font = pygame.font.Font(None, 24)
-        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 150, HEIGHT - 40))
-        
-        # Update display
-        pygame.display.flip()
-        
-        # Limit framerate
-        clock.tick(30)
-
-# Initialize GPIO handler
-gpio_handler = GPIOHandler()
-
-def main():
-    try:
-        main_menu()
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        gpio_handler.cleanup()
-        pygame.quit()
-
-if __name__ == "__main__":
-    main()
