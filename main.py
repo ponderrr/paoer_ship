@@ -206,26 +206,32 @@ def settings_screen():
 
 def process_shot(x, y, shooter_board, target_board, shots_set):
     """Process a shot from one player to another's board"""
-    if (x, y) in shots_set:
+    # Swap coordinates for internal board representation
+    # This translates display coordinates to board coordinates
+    # x = column (A-J), y = row (1-10)
+    # But internally board is accessed as [row][col]
+    board_x, board_y = y, x
+    
+    if (board_x, board_y) in shots_set:
         return False, False  # Shot already taken, no ship sunk
         
-    shots_set.add((x, y))
+    shots_set.add((board_x, board_y))
     
     # Check if hit and if ship was sunk
     hit = False
     ship_sunk = False
     
     for ship in target_board.ships:
-        if ship.receive_hit(x, y):
+        if ship.receive_hit(board_x, board_y):
             hit = True
             ship_sunk = ship.is_sunk()
             break
             
     # Update the board state at the target location
     if hit:
-        target_board.board[x, y] = CellState.HIT.value
+        target_board.board[board_x, board_y] = CellState.HIT.value
     else:
-        target_board.board[x, y] = CellState.MISS.value
+        target_board.board[board_x, board_y] = CellState.MISS.value
             
     return hit, ship_sunk
 
@@ -460,14 +466,14 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                             cursor_x += 1
                         elif event.key == pygame.K_SPACE:
                             # Player 1 fires
-                            if current_player == 1 and (cursor_x, cursor_y) not in player1_shots:
+                            if current_player == 1 and (cursor_y, cursor_x) not in player1_shots:  # Note the coordinate swap!
                                 hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
                                 
-                                # Update the view
+                                # Update the view - using correct coordinate mapping
                                 if hit:
-                                    player1_view[cursor_x][cursor_y] = CellState.HIT.value
+                                    player1_view[cursor_y][cursor_x] = CellState.HIT.value  # Swap coordinates for view update
                                 else:
-                                    player1_view[cursor_x][cursor_y] = CellState.MISS.value
+                                    player1_view[cursor_y][cursor_x] = CellState.MISS.value  # Swap coordinates for view update
                                     
                                     # For Pao mode, player immediately loses if they miss
                                     if pao_mode:
@@ -476,7 +482,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                         draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
                                         draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
                                         
-                                        miss_text = small_font.render(f"You fired at {chr(65 + cursor_y)}{cursor_x + 1}: MISS!", True, (0, 0, 255))
+                                        miss_text = small_font.render(f"You fired at {chr(65 + cursor_x)}{cursor_y + 1}: MISS!", True, (0, 0, 255))
                                         screen.blit(miss_text, (WIDTH // 2 - 100, HEIGHT - 70))
                                         
                                         pao_warning = font.render("PAO MODE ACTIVATED - YOU LOSE!", True, (255, 0, 0))
@@ -506,7 +512,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     # Show the shot result
                                     if not ai_mode:
                                         # Show transition screens in player vs player mode
-                                        transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
+                                        # Fixed coordinates for display - letter/number format
+                                        transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
                                         transition_screen.show_player_ready_screen(2)
                                     else:
                                         # Just show result briefly in AI mode
@@ -517,14 +524,14 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     current_player = 2
                             
                             # Player 2 fires (only in non-AI mode)
-                            elif current_player == 2 and not ai_mode and (cursor_x, cursor_y) not in player2_shots:
+                            elif current_player == 2 and not ai_mode and (cursor_y, cursor_x) not in player2_shots:  # Note the coordinate swap!
                                 hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots)
                                 
-                                # Update the view
+                                # Update the view - using correct coordinate mapping
                                 if hit:
-                                    player2_view[cursor_x][cursor_y] = CellState.HIT.value
+                                    player2_view[cursor_y][cursor_x] = CellState.HIT.value  # Swap coordinates for view update
                                 else:
-                                    player2_view[cursor_x][cursor_y] = CellState.MISS.value
+                                    player2_view[cursor_y][cursor_x] = CellState.MISS.value  # Swap coordinates for view update
                                 
                                 # Draw the updated board to show shot result before transition
                                 pygame.display.flip()
@@ -539,7 +546,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     time.sleep(1)
                                 else:
                                     # Show the shot result
-                                    transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
+                                    # Fixed coordinates for display - letter/number format
+                                    transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
                                     transition_screen.show_player_ready_screen(1)
                                     
                                     # Switch back to player 1's turn
@@ -566,14 +574,14 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         
                     if button_states['fire']:
                         # Player 1 fires
-                        if current_player == 1 and (cursor_x, cursor_y) not in player1_shots:
+                        if current_player == 1 and (cursor_y, cursor_x) not in player1_shots:  # Note the coordinate swap!
                             hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
                             
-                            # Update the view
+                            # Update the view - using correct coordinate mapping
                             if hit:
-                                player1_view[cursor_x][cursor_y] = CellState.HIT.value
+                                player1_view[cursor_y][cursor_x] = CellState.HIT.value  # Swap coordinates for view update
                             else:
-                                player1_view[cursor_x][cursor_y] = CellState.MISS.value
+                                player1_view[cursor_y][cursor_x] = CellState.MISS.value  # Swap coordinates for view update
                                 
                                 # For Pao mode, player immediately loses if they miss
                                 if pao_mode:
@@ -582,7 +590,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
                                     draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
                                     
-                                    miss_text = small_font.render(f"You fired at {chr(65 + cursor_y)}{cursor_x + 1}: MISS!", True, (0, 0, 255))
+                                    miss_text = small_font.render(f"You fired at {chr(65 + cursor_x)}{cursor_y + 1}: MISS!", True, (0, 0, 255))
                                     screen.blit(miss_text, (WIDTH // 2 - 100, HEIGHT - 70))
                                     
                                     pao_warning = font.render("PAO MODE ACTIVATED - YOU LOSE!", True, (255, 0, 0))
@@ -612,7 +620,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 # Show the shot result
                                 if not ai_mode:
                                     # Show transition screens in player vs player mode
-                                    transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
+                                    # Fixed coordinates for display - letter/number format
+                                    transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
                                     transition_screen.show_player_ready_screen(2)
                                 else:
                                     # Just show result briefly in AI mode
@@ -623,14 +632,14 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 current_player = 2
                                 
                         # Player 2 fires (only in non-AI mode)
-                        elif current_player == 2 and not ai_mode and (cursor_x, cursor_y) not in player2_shots:
+                        elif current_player == 2 and not ai_mode and (cursor_y, cursor_x) not in player2_shots:  # Note the coordinate swap!
                             hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots)
                             
-                            # Update the view
+                            # Update the view - using correct coordinate mapping
                             if hit:
-                                player2_view[cursor_x][cursor_y] = CellState.HIT.value
+                                player2_view[cursor_y][cursor_x] = CellState.HIT.value  # Swap coordinates for view update
                             else:
-                                player2_view[cursor_x][cursor_y] = CellState.MISS.value
+                                player2_view[cursor_y][cursor_x] = CellState.MISS.value  # Swap coordinates for view update
                             
                             # Draw the updated board to show shot result before transition
                             pygame.display.flip()
@@ -645,7 +654,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 time.sleep(1)
                             else:
                                 # Show the shot result
-                                transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
+                                # Fixed coordinates for display - letter/number format
+                                transition_screen.show_turn_result(current_player, cursor_x, cursor_y, hit, ship_sunk)
                                 transition_screen.show_player_ready_screen(1)
                                 
                                 # Switch back to player 1's turn
@@ -679,46 +689,64 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 
                 try:
                     # Get AI's shot
-                    x, y = ai_opponent.get_shot()
+                    board_x, board_y = ai_opponent.get_shot()  # AI returns board coordinates (row, col)
                     
-                    # Print the shot for debugging
-                    print(f"AI shot coordinates: ({x}, {y})")
+                    # Convert from board coordinates to display coordinates for showing to the player
+                    # For display: x = col, y = row
+                    display_x, display_y = board_y, board_x
+                    
+                    print(f"AI shot - board coordinates: ({board_x}, {board_y}), display coordinates: ({display_x}, {display_y})")
                     
                     # Make sure the coordinates are valid (defensive programming)
-                    if not (0 <= x < 10 and 0 <= y < 10):
+                    if not (0 <= board_x < 10 and 0 <= board_y < 10):
                         # Fallback to a random valid shot if coordinates are invalid
-                        print(f"AI returned invalid shot coordinates: ({x}, {y})")
+                        print(f"AI returned invalid shot coordinates: ({board_x}, {board_y})")
                         valid_shots = [(i, j) for i in range(10) for j in range(10) if (i, j) not in player2_shots]
                         if valid_shots:
-                            x, y = random.choice(valid_shots)
-                            print(f"Using fallback coordinates: ({x}, {y})")
+                            board_x, board_y = random.choice(valid_shots)
+                            display_x, display_y = board_y, board_x  # Convert to display coordinates
+                            board_x, board_y = 0, 0  # Shouldn't happen but is a safe fallback
+                            display_x, display_y = board_y, board_x  # Convert to display coordinates
+                            print("Using emergency fallback coordinates - board: (0, 0), display: (0, 0)")
+                    
+                    # Process the shot using board coordinates
+                    # No need to swap here since we're directly working with board coordinates
+                    hit, ship_sunk = False, False
+                    
+                    # Add hit to shots set using board coordinates
+                    if (board_x, board_y) not in player2_shots:
+                        player2_shots.add((board_x, board_y))
+                        
+                        # Check for hit and ship_sunk
+                        for ship in player1_board.ships:
+                            if ship.receive_hit(board_x, board_y):
+                                hit = True
+                                ship_sunk = ship.is_sunk()
+                                break
+                        
+                        # Update board state
+                        if hit:
+                            player1_board.board[board_x, board_y] = CellState.HIT.value
+                            player2_view[board_x][board_y] = CellState.HIT.value  # Use board coordinates
+                            player1_own_view[board_x][board_y] = CellState.HIT.value  # Update player's view
                         else:
-                            x, y = 0, 0  # Shouldn't happen but is a safe fallback
-                            print("Using emergency fallback coordinates (0, 0)")
-                    
-                    # Process the shot
-                    hit, ship_sunk = process_shot(x, y, None, player1_board, player2_shots)
-                    
-                    # Update the views
-                    if hit:
-                        player2_view[x][y] = CellState.HIT.value
-                        player1_own_view[x][y] = CellState.HIT.value  # Update player's board to show hit
-                    else:
-                        player2_view[x][y] = CellState.MISS.value
-                        player1_own_view[x][y] = CellState.MISS.value  # Update player's board to show miss
+                            player1_board.board[board_x, board_y] = CellState.MISS.value
+                            player2_view[board_x][board_y] = CellState.MISS.value  # Use board coordinates
+                            player1_own_view[board_x][board_y] = CellState.MISS.value  # Update player's view
                     
                     # Update AI's knowledge of the shot
-                    ai_opponent.process_shot_result(x, y, hit, ship_sunk)
+                    ai_opponent.process_shot_result(board_x, board_y, hit, ship_sunk)
                     
                     # Draw the updated boards to show the AI's shot
                     screen.fill(BLACK)
-                    draw_board(screen, font, player2_view, 150, 80, 30, x, y, True, "AI's Shot")
+                    # Using display coordinates for cursor position
+                    draw_board(screen, font, player2_view, 150, 80, 30, display_x, display_y, True, "AI's Shot")
                     draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
                     
-                    # Draw status
+                    # Draw status - using display coordinates for showing to the player
                     hit_text = "HIT!" if hit else "MISS"
                     ship_text = " Ship sunk!" if ship_sunk else ""
-                    status_text = small_font.render(f"AI fired at {chr(65 + y)}{x + 1}: {hit_text}{ship_text}", True, 
+                    status_text = small_font.render(f"AI fired at {chr(65 + display_x)}{display_y + 1}: {hit_text}{ship_text}", True, 
                                                 (255, 0, 0) if hit else (255, 255, 255))
                     screen.blit(status_text, (WIDTH // 2 - 120, HEIGHT - 40))
                     
