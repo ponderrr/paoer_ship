@@ -25,46 +25,6 @@ from src.utils.image_display import ImageDisplay
 from turn_transition_screen import TurnTransitionScreen
 from exit_confirmation import ExitConfirmation
 
-# Try to import DualDisplayHandler
-try:
-    from src.hardware.dual_display_handler import DualDisplayHandler
-    DUAL_DISPLAY_AVAILABLE = True
-    logger.debug("Successfully imported DualDisplayHandler")
-except ImportError as e:
-    DUAL_DISPLAY_AVAILABLE = False
-    logger.error(f"Failed to import DualDisplayHandler: {e}")
-    
-    # Create a dummy class as fallback
-    class DummyDisplayHandler:
-        def __init__(self, main_screen, portable_screen=None):
-            self.main_screen = main_screen
-            self.portable_screen = portable_screen
-            self.main_width = main_screen.get_width()
-            self.main_height = main_screen.get_height()
-            
-        def clear_portable_screen(self):
-            pass
-            
-        def draw_board_on_portable(self, board_state, shots=None, hits=None, title="Your Ships"):
-            # Create a shaded area for the "portable" view
-            pygame.draw.rect(self.main_screen, (0, 0, 0), (0, 0, self.main_width, 80))
-            
-            # Draw a "PLAYER SHIPS" indicator at the top
-            title_font = pygame.font.Font(None, 32)
-            title_text = title_font.render("PLAYER SHIPS VIEW ACTIVE", True, (255, 255, 0))
-            title_rect = title_text.get_rect(center=(self.main_width // 2, 40))
-            self.main_screen.blit(title_text, title_rect)
-            
-        def draw_waiting_screen(self, player_number):
-            # Draw waiting indicator at the top of the screen
-            pygame.draw.rect(self.main_screen, (0, 0, 0), (0, 0, self.main_width, 80))
-            font = pygame.font.Font(None, 32)
-            text = font.render(f"PLAYER {player_number}'S TURN - PRESS ROTATE BUTTON", True, (255, 255, 0))
-            rect = text.get_rect(center=(self.main_width // 2, 40))
-            self.main_screen.blit(text, rect)
-    
-    DualDisplayHandler = DummyDisplayHandler
-
 # Try to import GPIO support
 try:
     import gpiod
