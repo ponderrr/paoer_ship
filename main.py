@@ -375,15 +375,15 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 screen, 
                 font, 
                 view_board, 
-                150, 
-                80, 
-                30, 
-                cursor_x if current_player == 1 else -1,  # Only show cursor for human player
-                cursor_y if current_player == 1 else -1,
-                current_player == 1,  # Show cursor only for player 1
+                    150, 
+                    80, 
+                    30, 
+                cursor_x if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
+                cursor_y if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
+                (current_player == 1 or (current_player == 2 and not ai_mode)),
                 "Opponent's Board"
-            )
-            
+                )
+
             # Draw player's own board (with ships)
             # This is to see the status of their own ships
             
@@ -412,12 +412,13 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 if current_player == 1:
                     status_text = small_font.render("Press FIRE to shoot", True, WHITE)
                     screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
-                if ai_mode:
-                    status_text = small_font.render("AI is thinking...", True, WHITE)
                 else:
-                    status_text = small_font.render("AI is thinking...", True, WHITE)
-                    screen.blit(status_text, (WIDTH // 2 - 70, HEIGHT - 40))
-            
+                
+                    if ai_mode:
+                        status_text = small_font.render("AI is thinking...", True, WHITE)
+                    else:
+                        status_text = small_font.render("Player 2's Turn", True, WHITE)
+                        screen.blit(status_text, (WIDTH // 2 - 70, HEIGHT - 40))
             # Process events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -429,7 +430,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_TAB:
                         showing_exit_dialog = True
                     
-                    if not winner and current_player == 1:  # Only process player 1 input during their turn
+                    if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)): # Only process player 1 input during their turn
                         if event.key == pygame.K_UP and cursor_y > 0:
                             cursor_y -= 1
                         elif event.key == pygame.K_DOWN and cursor_y < 9:
@@ -505,7 +506,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     showing_exit_dialog = True
                 
                 # Only process gameplay if no win condition yet and it's player 1's turn
-                if not winner and current_player == 1:
+                if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)):
+    
                     if button_states['up'] and cursor_y > 0:
                         cursor_y -= 1
                     if button_states['down'] and cursor_y < 9:
