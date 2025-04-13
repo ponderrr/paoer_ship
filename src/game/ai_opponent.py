@@ -284,59 +284,77 @@ class AIOpponent:
         Returns:
             tuple: (x, y) coordinates to target
         """
-        # Add a delay to simulate "thinking"
-        if self.difficulty == AIDifficulty.EASY:
-            time.sleep(random.uniform(0.5, 1.5))
-        elif self.difficulty == AIDifficulty.MEDIUM:
-            time.sleep(random.uniform(1.0, 2.0))
-        elif self.difficulty == AIDifficulty.HARD:
-            time.sleep(random.uniform(1.5, 3.0))
-        else:  # PAO mode
-            time.sleep(random.uniform(2.0, 3.0))
-        
-        # Pao mode - target known ship locations
-        if self.pao_mode and self.player_board:
-            return self._get_pao_shot()
-        
-        # Choose targeting strategy based on difficulty
-        if self.difficulty == AIDifficulty.EASY:
-            return self._get_easy_shot()
-        elif self.difficulty == AIDifficulty.MEDIUM:
-            return self._get_medium_shot()
-        else:  # HARD
-            return self._get_hard_shot()
+        try:
+            # Add a delay to simulate "thinking"
+            if self.difficulty == AIDifficulty.EASY:
+                time.sleep(random.uniform(0.5, 1.5))
+            elif self.difficulty == AIDifficulty.MEDIUM:
+                time.sleep(random.uniform(1.0, 2.0))
+            elif self.difficulty == AIDifficulty.HARD:
+                time.sleep(random.uniform(1.5, 3.0))
+            else:  # PAO mode
+                time.sleep(random.uniform(2.0, 3.0))
+            
+            # Pao mode - target known ship locations
+            if self.pao_mode and self.player_board:
+                return self._get_pao_shot()
+            
+            # Choose targeting strategy based on difficulty
+            if self.difficulty == AIDifficulty.EASY:
+                return self._get_easy_shot()
+            elif self.difficulty == AIDifficulty.MEDIUM:
+                return self._get_medium_shot()
+            elif self.difficulty == AIDifficulty.HARD:
+                return self._get_hard_shot()
+            else:
+                # Fallback to medium difficulty if unhandled difficulty
+                return self._get_medium_shot()
+                
+        except Exception as e:
+            print(f"Error in get_shot: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fallback to a simple random shot
+            return self._get_fallback_shot()
     
-def _get_easy_shot(self):
-    """Random targeting with minimal follow-up for Easy difficulty"""
-    # 70% random shots, 30% follow up on hits
-    if self.hits and random.random() < 0.3:
-        # Get the last hit position
-        last_hit_x, last_hit_y = self.hits[-1]
-        
-        # Try adjacent positions randomly
-        possible_shots = []
-        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-            nx, ny = last_hit_x + dx, last_hit_y + dy
-            if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in self.shots:
-                possible_shots.append((nx, ny))
-        
-        if possible_shots:
-            return random.choice(possible_shots)
+    def _get_fallback_shot(self):
+        """Fallback method when other shot methods fail"""
+        print("Using fallback shot method")
+        available_shots = [(i, j) for i in range(10) for j in range(10) if (i, j) not in self.shots]
+        if available_shots:
+            return random.choice(available_shots)
+        return (0, 0)  # Emergency fallback
     
-    # Create a list of all available positions that haven't been shot
-    available_shots = []
-    for x in range(10):
-        for y in range(10):
-            if (x, y) not in self.shots:
-                available_shots.append((x, y))
-    
-    # Make sure there are still available shots
-    if available_shots:
-        return random.choice(available_shots)
-    else:
-        # Fallback - this should never happen in a normal game
-        return (0, 0)
-
+    def _get_easy_shot(self):
+        """Random targeting with minimal follow-up for Easy difficulty"""
+        # 70% random shots, 30% follow up on hits
+        if self.hits and random.random() < 0.3:
+            # Get the last hit position
+            last_hit_x, last_hit_y = self.hits[-1]
+            
+            # Try adjacent positions randomly
+            possible_shots = []
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = last_hit_x + dx, last_hit_y + dy
+                if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in self.shots:
+                    possible_shots.append((nx, ny))
+            
+            if possible_shots:
+                return random.choice(possible_shots)
+        
+        # Create a list of all available positions that haven't been shot
+        available_shots = []
+        for i in range(10):
+            for j in range(10):
+                if (i, j) not in self.shots:
+                    available_shots.append((i, j))
+        
+        # Make sure there are still available shots
+        if available_shots:
+            return random.choice(available_shots)
+        else:
+            # Fallback - this should never happen in a normal game
+            return (0, 0)
     
     def _get_medium_shot(self):
         """Smarter targeting with follow-up for Medium difficulty"""
@@ -402,11 +420,15 @@ def _get_easy_shot(self):
                 return random.choice(possible_shots)
         
         # Random shot as fallback
-        while True:
-            x = random.randint(0, 9)
-            y = random.randint(0, 9)
-            if (x, y) not in self.shots:
-                return (x, y)
+        available_shots = []
+        for i in range(10):
+            for j in range(10):
+                if (i, j) not in self.shots:
+                    available_shots.append((i, j))
+        
+        if available_shots:
+            return random.choice(available_shots)
+        return (0, 0)  # Emergency fallback
     
     def _get_hard_shot(self):
         """
@@ -497,22 +519,31 @@ def _get_easy_shot(self):
         if best_shots:
             return random.choice(best_shots)
         
-        # Fallback to random untargeted cell
-        while True:
-            x = random.randint(0, 9)
-            y = random.randint(0, 9)
-            if (x, y) not in self.shots:
-                return (x, y)
+        # Fallback to any available shot
+        available_shots = []
+        for i in range(10):
+            for j in range(10):
+                if (i, j) not in self.shots:
+                    available_shots.append((i, j))
+        
+        if available_shots:
+            return random.choice(available_shots)
+        
+        return (0, 0)  # Emergency fallback
     
     def _get_pao_shot(self):
         """Pao mode targeting - targets known ship locations"""
         if not self.player_board:
             # Fallback to random if no player_board reference
-            while True:
-                x = random.randint(0, 9)
-                y = random.randint(0, 9)
-                if (x, y) not in self.shots:
-                    return (x, y)
+            available_shots = []
+            for i in range(10):
+                for j in range(10):
+                    if (i, j) not in self.shots:
+                        available_shots.append((i, j))
+            
+            if available_shots:
+                return random.choice(available_shots)
+            return (0, 0)  # Emergency fallback
         
         # Find an unsunk ship cell
         for x in range(10):
@@ -521,11 +552,15 @@ def _get_easy_shot(self):
                     return (x, y)
         
         # If no ship cells found, take a random shot
-        while True:
-            x = random.randint(0, 9)
-            y = random.randint(0, 9)
-            if (x, y) not in self.shots:
-                return (x, y)
+        available_shots = []
+        for i in range(10):
+            for j in range(10):
+                if (i, j) not in self.shots:
+                    available_shots.append((i, j))
+        
+        if available_shots:
+            return random.choice(available_shots)
+        return (0, 0)  # Emergency fallback
     
     def process_shot_result(self, x, y, hit, ship_sunk=False):
         """
