@@ -240,7 +240,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         player2_board: Game board for player 2 (or AI)
     """
     try:
-    
+        print(f"Starting game with AI mode: {ai_mode}, difficulty: {difficulty}")
         
         # Import necessary modules
         import numpy as np
@@ -375,22 +375,38 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 screen, 
                 font, 
                 view_board, 
-                    150, 
-                    80, 
-                    30, 
-                cursor_x if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
+                150, 
+                80, 
+                30, 
+                cursor_x if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,  # Show cursor for human players
                 cursor_y if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
-                (current_player == 1 or (current_player == 2 and not ai_mode)),
+                (current_player == 1 or (current_player == 2 and not ai_mode)),  # Show cursor for human players
                 "Opponent's Board"
-                )
-
-            # Draw player's own board (with ships)
-            # This is to see the status of their own ships
+            )
+            
+            # Only show own board during AI mode
+            if ai_mode:
+                # Draw player's own board (with ships) in AI mode
+                if not winner:
+                    draw_board(
+                        screen,
+                        font,
+                        player1_own_view,  # Always show player's own board in AI mode
+                        400,
+                        80,
+                        25,  # Smaller cell size for own board
+                        -1,  # No cursor on own board
+                        -1,
+                        False,
+                        "Your Board"
+                    )
             
             # Draw current player
             if not winner:
-                if current_player == 1 or not ai_mode:
-                    player_text = font.render(f"Player {current_player}'s Turn", True, WHITE)
+                if current_player == 1:
+                    player_text = font.render("Player 1's Turn", True, WHITE)
+                elif not ai_mode:
+                    player_text = font.render("Player 2's Turn", True, WHITE)
                 else:
                     player_text = font.render("AI's Turn", True, WHITE)
                 screen.blit(player_text, (20, 20))
@@ -398,7 +414,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             # Draw status message
             if winner:
                 if winner == 1:
-                    winner_text = font.render("You Win!", True, (255, 215, 0))
+                    winner_text = font.render("Player 1 Wins!", True, (255, 215, 0))
                 elif ai_mode:
                     winner_text = font.render("AI Wins!", True, (255, 0, 0))
                 else:
@@ -409,16 +425,18 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 restart_text = small_font.render("Press MODE to return to menu", True, WHITE)
                 screen.blit(restart_text, (WIDTH // 2 - 120, HEIGHT - 60))
             else:
+                # Status messages - use different text for AI vs human player 2
                 if current_player == 1:
                     status_text = small_font.render("Press FIRE to shoot", True, WHITE)
                     screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
                 else:
-                
+                    # Different message based on if it's AI or human player 2
                     if ai_mode:
                         status_text = small_font.render("AI is thinking...", True, WHITE)
                     else:
-                        status_text = small_font.render("Player 2's Turn", True, WHITE)
-                        screen.blit(status_text, (WIDTH // 2 - 70, HEIGHT - 40))
+                        status_text = small_font.render("Player 2: Press FIRE to shoot", True, WHITE)
+                    screen.blit(status_text, (WIDTH // 2 - 100, HEIGHT - 40))
+            
             # Process events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -430,7 +448,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_TAB:
                         showing_exit_dialog = True
                     
-                    if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)): # Only process player 1 input during their turn
+                    # Allow input for both players in non-AI mode, or just player 1 in AI mode
+                    if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)):
                         if event.key == pygame.K_UP and cursor_y > 0:
                             cursor_y -= 1
                         elif event.key == pygame.K_DOWN and cursor_y < 9:
@@ -441,7 +460,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                             cursor_x += 1
                         elif event.key == pygame.K_SPACE:
                             # Player 1 fires
-                            if (cursor_x, cursor_y) not in player1_shots:
+                            if current_player == 1 and (cursor_x, cursor_y) not in player1_shots:
                                 hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
                                 
                                 # Update the view
@@ -496,6 +515,35 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     
                                     # Switch to next player's turn
                                     current_player = 2
+                            
+                            # Player 2 fires (only in non-AI mode)
+                            elif current_player == 2 and not ai_mode and (cursor_x, cursor_y) not in player2_shots:
+                                hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots)
+                                
+                                # Update the view
+                                if hit:
+                                    player2_view[cursor_x][cursor_y] = CellState.HIT.value
+                                else:
+                                    player2_view[cursor_x][cursor_y] = CellState.MISS.value
+                                
+                                # Draw the updated board to show shot result before transition
+                                pygame.display.flip()
+                                
+                                # Check if game over
+                                new_winner = check_game_over()
+                                if new_winner:
+                                    winner = new_winner
+                                    # Show the final shot before ending
+                                    pygame.display.flip()
+                                    # Wait a moment to show the winning shot
+                                    time.sleep(1)
+                                else:
+                                    # Show the shot result
+                                    transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
+                                    transition_screen.show_player_ready_screen(1)
+                                    
+                                    # Switch back to player 1's turn
+                                    current_player = 1
             
             # Check GPIO buttons if not showing message
             if not showing_message:
@@ -505,9 +553,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 if button_states['mode']:
                     showing_exit_dialog = True
                 
-                # Only process gameplay if no win condition yet and it's player 1's turn
+                # Only process gameplay if no win condition yet and it's a human player's turn
                 if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)):
-    
                     if button_states['up'] and cursor_y > 0:
                         cursor_y -= 1
                     if button_states['down'] and cursor_y < 9:
@@ -519,7 +566,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         
                     if button_states['fire']:
                         # Player 1 fires
-                        if (cursor_x, cursor_y) not in player1_shots:
+                        if current_player == 1 and (cursor_x, cursor_y) not in player1_shots:
                             hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
                             
                             # Update the view
@@ -574,6 +621,35 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 
                                 # Switch to next player's turn
                                 current_player = 2
+                                
+                        # Player 2 fires (only in non-AI mode)
+                        elif current_player == 2 and not ai_mode and (cursor_x, cursor_y) not in player2_shots:
+                            hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots)
+                            
+                            # Update the view
+                            if hit:
+                                player2_view[cursor_x][cursor_y] = CellState.HIT.value
+                            else:
+                                player2_view[cursor_x][cursor_y] = CellState.MISS.value
+                            
+                            # Draw the updated board to show shot result before transition
+                            pygame.display.flip()
+                            
+                            # Check if game over
+                            new_winner = check_game_over()
+                            if new_winner:
+                                winner = new_winner
+                                # Show the final shot before ending
+                                pygame.display.flip()
+                                # Wait a moment to show the winning shot
+                                time.sleep(1)
+                            else:
+                                # Show the shot result
+                                transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
+                                transition_screen.show_player_ready_screen(1)
+                                
+                                # Switch back to player 1's turn
+                                current_player = 1
                 elif winner:
                     # If there's a winner, pressing any button will return to menu
                     if any(button_states.values()):
@@ -605,15 +681,20 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     # Get AI's shot
                     x, y = ai_opponent.get_shot()
                     
+                    # Print the shot for debugging
+                    print(f"AI shot coordinates: ({x}, {y})")
+                    
                     # Make sure the coordinates are valid (defensive programming)
                     if not (0 <= x < 10 and 0 <= y < 10):
                         # Fallback to a random valid shot if coordinates are invalid
-                      
+                        print(f"AI returned invalid shot coordinates: ({x}, {y})")
                         valid_shots = [(i, j) for i in range(10) for j in range(10) if (i, j) not in player2_shots]
                         if valid_shots:
                             x, y = random.choice(valid_shots)
+                            print(f"Using fallback coordinates: ({x}, {y})")
                         else:
                             x, y = 0, 0  # Shouldn't happen but is a safe fallback
+                            print("Using emergency fallback coordinates (0, 0)")
                     
                     # Process the shot
                     hit, ship_sunk = process_shot(x, y, None, player1_board, player2_shots)
@@ -655,9 +736,12 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         # Switch back to player's turn
                         current_player = 1
                 except Exception as e:
-             
+                    print(f"AI error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    
                     # Show error message and continue
-                    error_text = small_font.render("AI error - returning to your turn", True, (255, 0, 0))
+                    error_text = small_font.render(f"AI error: {str(e)[:30]}...", True, (255, 0, 0))
                     screen.blit(error_text, (WIDTH // 2 - 120, HEIGHT - 70))
                     pygame.display.flip()
                     pygame.time.delay(2000)
@@ -670,8 +754,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         return winner
         
     except Exception as e:
-        logger.error(f"Error in game_screen: {e}")
-        logger.error(traceback.format_exc())
+        print(f"Error in game_screen: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cursor_y, show_cursor, title=None):
