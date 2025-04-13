@@ -344,12 +344,20 @@ class ShipPlacementScreen:
             pygame.draw.rect(self.screen, preview_color, (cell_x, cell_y, self.cell_size - 2, self.cell_size - 2))
             
         # Draw cursor highlight around the ship's starting position
-        cursor_rect = pygame.Rect(
+            cursor_width = self.cell_size + 2
+            cursor_height = self.cell_size + 2
+
+            if self.current_ship_horizontal:
+                cursor_width = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
+            else:
+                cursor_height = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
+    
+            cursor_rect = pygame.Rect(
             offset_x + self.cursor_y * self.cell_size - 2,
             offset_y + self.cursor_x * self.cell_size - 2,
-            self.cell_size + 2,
-            self.cell_size + 2
-        )
+            cursor_width,
+            cursor_height
+)
         pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR, cursor_rect, 2)
     
     def draw_ship_list(self, x, y):

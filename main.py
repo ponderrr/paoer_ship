@@ -386,19 +386,6 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             
             # Draw player's own board (with ships)
             # This is to see the status of their own ships
-            if not winner:
-                draw_board(
-                    screen,
-                    font,
-                    own_board,
-                    400,
-                    80,
-                    25,  # Smaller cell size for own board
-                    -1,  # No cursor on own board
-                    -1,
-                    False,
-                    "Your Board"
-                )
             
             # Draw current player
             if not winner:
@@ -425,6 +412,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 if current_player == 1:
                     status_text = small_font.render("Press FIRE to shoot", True, WHITE)
                     screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
+                if ai_mode:
+                    status_text = small_font.render("AI is thinking...", True, WHITE)
                 else:
                     status_text = small_font.render("AI is thinking...", True, WHITE)
                     screen.blit(status_text, (WIDTH // 2 - 70, HEIGHT - 40))
@@ -761,14 +750,14 @@ def game_mode_select():
         
         # Draw title
         title_text = font.render("Select Game Mode", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
         screen.blit(title_text, title_rect)
         
         # Draw options
         for i, option in enumerate(options):
             color = LIGHT_BLUE if i == current_option else WHITE
             option_text = font.render(option, True, color)
-            option_rect = option_text.get_rect(center=(WIDTH // 2, 200 + i * 60))
+            option_rect = option_text.get_rect(center=(WIDTH // 2, 180 + i * 60))
             screen.blit(option_text, option_rect)
             
             # Draw highlight box around selected option
