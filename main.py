@@ -357,10 +357,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             exit_text = small_font.render("Press MODE to exit", True, LIGHT_GRAY)
             screen.blit(exit_text, (20, HEIGHT - 30))
             
-            # Handle exit confirmation dialog
             if showing_exit_dialog:
                 if exit_dialog.show():
                     running = False  # Exit to main menu
+                    break  # Exit the loop immediately
                 showing_exit_dialog = False
                 continue  # Skip the rest of the loop iteration after dialog
             
@@ -400,29 +400,17 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             # Only show own board during AI mode
             if ai_mode:
                 # Draw player's own board (with ships) in AI mode
-                if not winner:
-                    draw_board(
-                        screen,
-                        font,
-                        player1_own_view,  # Always show player's own board in AI mode
-                        400,
-                        80,
-                        25,  # Smaller cell size for own board
-                        -1,  # No cursor on own board
-                        -1,
-                        False,
-                        "Your Board"
-                    )
+                
             
             # Draw current player
-            if not winner:
-                if current_player == 1:
-                    player_text = font.render("Player 1's Turn", True, WHITE)
-                elif not ai_mode:
-                    player_text = font.render("Player 2's Turn", True, WHITE)
+                if not winner:
+                    if current_player == 1:
+                        player_text = font.render("Player 1's Turn", True, WHITE)
+                    elif not ai_mode:
+                        player_text = font.render("Player 2's Turn", True, WHITE)
                 else:
                     player_text = font.render("AI's Turn", True, WHITE)
-                screen.blit(player_text, (20, 20))
+                    screen.blit(player_text, (20, 20))
             
             # Draw status message
             if winner:
@@ -814,6 +802,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
                         # Switch back to player's turn
                     current_player = 1
+
                 except Exception as e:
                     print(f"AI error: {e}")
                     import traceback
@@ -824,7 +813,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     screen.blit(error_text, (WIDTH // 2 - 120, HEIGHT - 70))
                     pygame.display.flip()
                     pygame.time.delay(2000)
-                    current_player = 1
+                    
             
             # Update display
             pygame.display.flip()
