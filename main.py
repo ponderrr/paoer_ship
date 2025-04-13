@@ -203,7 +203,7 @@ def settings_screen():
         
         # Small delay to prevent CPU hogging
         time.sleep(0.01)
-        
+
 def process_shot(x, y, shooter_board, target_board, shots_set):
     """Process a shot from one player to another's board"""
     if (x, y) in shots_set:
@@ -240,7 +240,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         player2_board: Game board for player 2 (or AI)
     """
     try:
-        logger.debug(f"Starting game with AI mode: {ai_mode}, difficulty: {difficulty}")
+    
         
         # Import necessary modules
         import numpy as np
@@ -617,7 +617,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     # Make sure the coordinates are valid (defensive programming)
                     if not (0 <= x < 10 and 0 <= y < 10):
                         # Fallback to a random valid shot if coordinates are invalid
-                        logger.warning(f"AI returned invalid shot coordinates: ({x}, {y})")
+                      
                         valid_shots = [(i, j) for i in range(10) for j in range(10) if (i, j) not in player2_shots]
                         if valid_shots:
                             x, y = random.choice(valid_shots)
@@ -664,8 +664,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         # Switch back to player's turn
                         current_player = 1
                 except Exception as e:
-                    logger.error(f"Error during AI turn: {e}")
-                    logger.error(traceback.format_exc())
+             
                     # Show error message and continue
                     error_text = small_font.render("AI error - returning to your turn", True, (255, 0, 0))
                     screen.blit(error_text, (WIDTH // 2 - 120, HEIGHT - 70))
