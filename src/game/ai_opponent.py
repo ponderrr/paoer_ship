@@ -306,29 +306,37 @@ class AIOpponent:
         else:  # HARD
             return self._get_hard_shot()
     
-    def _get_easy_shot(self):
-        """Random targeting with minimal follow-up for Easy difficulty"""
-        # 70% random shots, 30% follow up on hits
-        if self.hits and random.random() < 0.3:
-            # Get the last hit position
-            last_hit_x, last_hit_y = self.hits[-1]
-            
-            # Try adjacent positions randomly
-            possible_shots = []
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                nx, ny = last_hit_x + dx, last_hit_y + dy
-                if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in self.shots:
-                    possible_shots.append((nx, ny))
-            
-            if possible_shots:
-                return random.choice(possible_shots)
+def _get_easy_shot(self):
+    """Random targeting with minimal follow-up for Easy difficulty"""
+    # 70% random shots, 30% follow up on hits
+    if self.hits and random.random() < 0.3:
+        # Get the last hit position
+        last_hit_x, last_hit_y = self.hits[-1]
         
-        # Random shot
-        while True:
-            x = random.randint(0, 9)
-            y = random.randint(0, 9)
+        # Try adjacent positions randomly
+        possible_shots = []
+        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            nx, ny = last_hit_x + dx, last_hit_y + dy
+            if 0 <= nx < 10 and 0 <= ny < 10 and (nx, ny) not in self.shots:
+                possible_shots.append((nx, ny))
+        
+        if possible_shots:
+            return random.choice(possible_shots)
+    
+    # Create a list of all available positions that haven't been shot
+    available_shots = []
+    for x in range(10):
+        for y in range(10):
             if (x, y) not in self.shots:
-                return (x, y)
+                available_shots.append((x, y))
+    
+    # Make sure there are still available shots
+    if available_shots:
+        return random.choice(available_shots)
+    else:
+        # Fallback - this should never happen in a normal game
+        return (0, 0)
+
     
     def _get_medium_shot(self):
         """Smarter targeting with follow-up for Medium difficulty"""
