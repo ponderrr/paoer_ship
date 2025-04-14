@@ -7,6 +7,7 @@ from src.board.game_board import GameBoard, CellState
 from ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
+from src.hardware.display_tkinter import DisplayTkinter
 
 # Try to import GPIO support
 try:
@@ -18,6 +19,20 @@ except ImportError:
 # Initialize Pygame
 pygame.init()
 
+
+# Initialize secondary display (tkinter)
+use_secondary_display = True  # Set this to False to disable secondary display
+secondary_display = None
+
+if use_secondary_display:
+    try:
+        secondary_display = DisplayTkinter(width=800, height=600, screen_number=1)
+        secondary_display.init_display()
+        print("Secondary display (Tkinter) initialized successfully!")
+    except Exception as e:
+        print(f"Failed to initialize secondary display: {e}")
+        secondary_display = None
+        
 # Screen settings - smaller for better performance
 WIDTH, HEIGHT = 640, 480
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -315,9 +330,13 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         winner = None  # None, 1, or 2
         move_delay = 0  # Delay for cursor movement
         
+        # Update secondary display with initial board state
+        if secondary_display:
+            secondary_display.set_status(f"Game Started: {game_mode_text}")
+            secondary_display.update(player1_own_view)
         # Display boards for each player (what they can see)
-        player1_view = np.zeros((10, 10), dtype=int)
-        player2_view = np.zeros((10, 10), dtype=int)
+            player1_view = np.zeros((10, 10), dtype=int)
+            player2_view = np.zeros((10, 10), dtype=int)
         
         # Get player's board state to display their own ships
         player1_own_view = player1_board.get_display_state()
@@ -372,14 +391,25 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 # Also show player 1's board with their ships
                 own_board = player1_own_view
             else:
+            
+                if secondary_display:
+                        secondary_display.set_status("Your Board - Player 1's Turn")
+                        secondary_display.update(player1_own_view)
+                else:
                 # Player 2's turn - show player 1's board with player 2's shots
-                active_board = player1_board
-                view_board = player2_view
-                shots = player2_shots
+                
+                    active_board = player1_board
+                    view_board = player2_view
+                    shots = player2_shots
                 
                 # Also show player 2's board with their ships
                 own_board = player2_own_view
-            
+
+                 # Add this block for secondary display update
+                if secondary_display and not ai_mode:
+                        secondary_display.set_status("Your Board - Player 2's Turn") 
+                        secondary_display.update(player2_own_view)
+                
             # Draw opponent board (with shots but not ships)
             # This is the board the current player is firing at
             draw_board(
@@ -423,10 +453,16 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             if winner:
                 if winner == 1:
                     winner_text = font.render("Player 1 Wins!", True, (255, 215, 0))
+                    if secondary_display:
+                        secondary_display.set_status("Game Over - Player 1 Wins!")
                 elif ai_mode:
                     winner_text = font.render("AI Wins!", True, (255, 0, 0))
+                    if secondary_display:
+                        secondary_display.set_status("Game Over - AI Wins!")
                 else:
                     winner_text = font.render(f"Player {winner} Wins!", True, (255, 215, 0))
+                    if secondary_display:
+                        secondary_display.set_status(f"Game Over - Player {winner} Wins!")
                 
                 screen.blit(winner_text, (WIDTH // 2 - 100, HEIGHT - 100))
                 
@@ -1199,8 +1235,14 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
+    # Clean up resources
         gpio_handler.cleanup()
-        pygame.quit()
+    
+    # Clean up secondary display
+    if secondary_display:
+        secondary_display.cleanup()
+        
+    pygame.quit()
 
 if __name__ == "__main__":
     main()
