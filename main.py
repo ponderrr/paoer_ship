@@ -7,6 +7,8 @@ from src.board.game_board import GameBoard, CellState
 from ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
+from src.sounds.soundEffects.sound_manager import SoundManager
+
 
 # Try to import GPIO support
 try:
@@ -34,6 +36,11 @@ LIGHT_GRAY = (180, 180, 180)
 pygame.font.init()
 title_font = pygame.font.Font(None, 50)
 button_font = pygame.font.Font(None, 30)
+
+# Create a SoundManager instance
+sound_manager = SoundManager()
+# Optionally start the background music
+sound_manager.start_background_music()
 
 class GPIOHandler:
     def __init__(self):
@@ -441,6 +448,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         cursor_x += 1
                     elif event.key == pygame.K_SPACE:
                         # Player 1 fires
+                        sound_manager.play_sound("fire")
+
                         if (cursor_x, cursor_y) not in player1_shots:
                             hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
                             
@@ -506,6 +515,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     cursor_x += 1
                     
                 if button_states['fire']:
+                    sound_manager.play_sound("fire")
                     # Player 1 fires
                     if (cursor_x, cursor_y) not in player1_shots:
                         hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
@@ -923,6 +933,8 @@ def main_menu():
         
         # Limit framerate
         clock.tick(30)
+
+
 
 # Initialize GPIO handler
 gpio_handler = GPIOHandler()
