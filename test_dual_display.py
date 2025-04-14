@@ -35,32 +35,26 @@ def create_mock_board():
 
 def main():
     """Test the secondary display with a mock game board"""
-    print("Testing secondary monitor display...")
-    print("This should open a window on your secondary monitor (HDMI-2)")
+    print("Testing HDMI-1 monitor display (1024x600)...")
+    print("This should open a window on your small monitor (HDMI-1)")
+    
     # Create main window
     root = tk.Tk()
-    root.title("Secondary Monitor Test")
+    root.title("Pao'er Ship - HDMI-1 Test")
     
-    # Get screen dimensions
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    
-    # Try to position on second monitor (assuming horizontally arranged)
-    # For Raspberry Pi with dual-HDMI, the second screen is likely at x-position = screen_width
-    root.geometry(f"800x600+{screen_width}+0")
-    
-    # If you need to manually position the window, you can uncomment and modify this line:
-    # root.geometry("800x600+1920+0")  # Assuming 1920x1080 primary display
+    # Position on HDMI-1 (small monitor)
+    # For Raspberry Pi with HDMI-1 as small screen
+    root.geometry("1024x600+0+0")
     
     # Create canvas for drawing
-    canvas = tk.Canvas(root, width=800, height=600, bg="#141420")
+    canvas = tk.Canvas(root, width=1024, height=600, bg="#141420")
     canvas.pack(fill=tk.BOTH, expand=True)
     
     # Add title
     title_label = tk.Label(
         root, 
-        text="Pao'er Ship - Secondary Display Test",
-        font=("Arial", 24, "bold"),
+        text="Pao'er Ship - Game Board Display",
+        font=("Arial", 18, "bold"),
         bg="#141420",
         fg="white"
     )
@@ -74,7 +68,7 @@ def main():
         bg="#141420",
         fg="#80C0FF"
     )
-    status_label.place(relx=0.5, y=550, anchor="center")
+    status_label.place(relx=0.5, y=570, anchor="center")
     
     # Colors for cells
     colors = {
@@ -97,15 +91,16 @@ def main():
         
         # Add some text explaining the display
         canvas.create_text(
-            400, 70,
-            text="This window should appear on your second monitor (HDMI-2)",
+            512, 70,
+            text="Game board display on HDMI-1 monitor",
             fill="white",
             font=("Arial", 14)
         )
         
+        # Calculate optimal cell size for small screen
         cell_size = 40
-        grid_offset_x = (800 - (cell_size * 10)) // 2
-        grid_offset_y = (600 - (cell_size * 10)) // 2 + 50  # Add some space for title
+        grid_offset_x = (1024 - (cell_size * 10)) // 2
+        grid_offset_y = (600 - (cell_size * 10)) // 2 + 20  # Add some space for title
         
         # Draw column labels (A-J)
         for x in range(10):
