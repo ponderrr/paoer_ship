@@ -330,18 +330,30 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         winner = None  # None, 1, or 2
         move_delay = 0  # Delay for cursor movement
         
-        # Update secondary display with initial board state
-        if secondary_display:
-            secondary_display.set_status(f"Game Started: {game_mode_text}")
-            secondary_display.update(player1_own_view)
         # Display boards for each player (what they can see)
-            player1_view = np.zeros((10, 10), dtype=int)
-            player2_view = np.zeros((10, 10), dtype=int)
+        player1_view = np.zeros((10, 10), dtype=int)
+        player2_view = np.zeros((10, 10), dtype=int)
         
         # Get player's board state to display their own ships
         player1_own_view = player1_board.get_display_state()
         player2_own_view = player2_board.get_display_state()
         
+        # Update secondary display with initial board state
+        if secondary_display:
+            secondary_display.set_status(f"Game Started: {game_mode_text}")
+            secondary_display.update(player1_own_view)
+        
+        # Show initial player screen if in player vs player mode
+        if not ai_mode:
+            transition_screen.show_player_ready_screen(current_player)
+        else:
+            # Show player ready screen with board in AI mode
+            transition_screen.show_player_ready_screen(
+             current_player,    # Player 1
+             True,              # is_ai_mode=True
+             player1_own_view   # Player's board for preview
+         )
+
         # Show initial player screen if in player vs player mode
         if not ai_mode:
             transition_screen.show_player_ready_screen(current_player)
@@ -352,7 +364,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 True,              # is_ai_mode=True
                 player1_own_view   # Player's board for preview
             )
-        
+        if secondary_display:
+            secondary_display.set_status(f"Game Started: {game_mode_text}")
+            # This line might have the error - make sure it's player1_own_view not player1_own_view_
+            secondary_display.update(player1_own_view)  # Make sure variable name is correct
         # Game state flags
         showing_exit_dialog = False
         pao_missed = False  # Track if player missed in Pao mode
@@ -381,7 +396,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 showing_exit_dialog = False
                 continue  # Skip the rest of the loop iteration after dialog
             
-            # Determine whose turn it is and which board to display
+                       # Determine whose turn it is and which board to display
             if current_player == 1:
                 # Player 1's turn - show player 2's board with player 1's shots
                 active_board = player2_board
@@ -390,25 +405,24 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 
                 # Also show player 1's board with their ships
                 own_board = player1_own_view
-            else:
-            
-                if secondary_display:
-                        secondary_display.set_status("Your Board - Player 1's Turn")
-                        secondary_display.update(player1_own_view)
-                else:
-                # Player 2's turn - show player 1's board with player 2's shots
                 
-                    active_board = player1_board
-                    view_board = player2_view
-                    shots = player2_shots
+                # Update secondary display
+                if secondary_display:
+                    secondary_display.set_status("Your Board - Player 1's Turn")
+                    secondary_display.update(player1_own_view)
+            else:
+                # Player 2's turn - show player 1's board with player 2's shots
+                active_board = player1_board
+                view_board = player2_view
+                shots = player2_shots
                 
                 # Also show player 2's board with their ships
                 own_board = player2_own_view
-
-                 # Add this block for secondary display update
+                
+                # Update secondary display
                 if secondary_display and not ai_mode:
-                        secondary_display.set_status("Your Board - Player 2's Turn") 
-                        secondary_display.update(player2_own_view)
+                    secondary_display.set_status("Your Board - Player 2's Turn") 
+                    secondary_display.update(player2_own_view)
                 
             # Draw opponent board (with shots but not ships)
             # This is the board the current player is firing at
