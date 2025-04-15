@@ -7,11 +7,7 @@ class SoundManager:
 
         # Existing sounds dictionary
         self.sounds = {
-            "hit": pygame.mixer.Sound("src/sounds/soundEffects/hit.mp3"),
-            "miss": pygame.mixer.Sound("assets/sounds/miss.wav"),
-            "ship_sunk": pygame.mixer.Sound("assets/sounds/ship_sunk.wav"),
-            "button_press": pygame.mixer.Sound("assets/sounds/button_press.wav"),
-            "fire": pygame.mixer.Sound("assets/sounds/fire.wav")
+            "fire": pygame.mixer.Sound("src/sounds/soundEffects/fire.mp3")
         }
 
         # Background music
