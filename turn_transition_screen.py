@@ -65,7 +65,7 @@ class TurnTransitionScreen:
             
         return button_states
     
-    def show_turn_result(self, player, row, col, hit, ship_sunk=False):
+    def show_turn_result(self, player, row, col, hit, ship_sunk=False, is_ai_mode=False, player_board=None):
         """
         Show the result of a player's turn
         
@@ -75,24 +75,26 @@ class TurnTransitionScreen:
             col (int): Column coordinate of the shot (0-9)
             hit (bool): Whether the shot hit a ship
             ship_sunk (bool): Whether a ship was sunk by this shot
+            is_ai_mode (bool): Whether playing against AI
+            player_board: Player's own board to display (for AI mode)
         """
-        # Display the result for 5 seconds
+        # Display the result for 4 seconds
         start_time = time.time()
         
-        while time.time() - start_time < 5:
+        while time.time() - start_time < 4:
             # Fill background
             self.screen.fill(self.BLACK)
             
             # Draw title
-            title = self.title_font.render(f"Player {player}'s Shot Result", True, self.WHITE)
-            title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
+            player_name = f"Player {player}" if player == 1 or not is_ai_mode else "AI"
+            title = self.title_font.render(f"{player_name}'s Shot Result", True, self.WHITE)
+            title_rect = title.get_rect(center=(self.width // 2, self.height // 5))
             self.screen.blit(title, title_rect)
             
-            # THIS IS THE KEY FIX:
-            # Convert internal (row, col) coordinates to user-friendly display
+            # Draw shot coordinates (convert internal board coords to UI friendly display)
             # Column is letter (A-J), Row is number (1-10)
             shot_text = self.info_font.render(f"Shot at coordinate: {chr(65 + col)}{row + 1}", True, self.LIGHT_BLUE)
-            shot_rect = shot_text.get_rect(center=(self.width // 2, self.height // 2 - 30))
+            shot_rect = shot_text.get_rect(center=(self.width // 2, self.height // 3))
             self.screen.blit(shot_text, shot_rect)
             
             # Draw result
@@ -106,14 +108,26 @@ class TurnTransitionScreen:
                 result_text = "MISS!"
             
             result = self.title_font.render(result_text, True, result_color)
-            result_rect = result.get_rect(center=(self.width // 2, self.height // 2 + 10))
+            result_rect = result.get_rect(center=(self.width // 2, self.height // 2))
             self.screen.blit(result, result_rect)
             
+            # Draw player's board in AI mode if provided
+            if is_ai_mode and player_board is not None:
+                self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
+                board_title = self.info_font.render("Your Board", True, self.WHITE)
+                board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
+                self.screen.blit(board_title, board_title_rect)
+            
             # Draw time remaining
-            time_left = 5 - (time.time() - start_time)
-            time_text = self.info_font.render(f"Next player in {time_left:.1f} seconds...", True, self.LIGHT_GRAY)
-            time_rect = time_text.get_rect(center=(self.width // 2, self.height // 2 + 50))
+            time_left = 4 - (time.time() - start_time)
+            time_text = self.info_font.render(f"Continue in {time_left:.1f} seconds...", True, self.LIGHT_GRAY)
+            time_rect = time_text.get_rect(center=(self.width // 2, self.height - 30))
             self.screen.blit(time_text, time_rect)
+            
+            # Draw skip prompt
+            skip_text = self.info_font.render("Press FIRE to continue", True, self.LIGHT_GRAY)
+            skip_rect = skip_text.get_rect(center=(self.width // 2, self.height - 60))
+            self.screen.blit(skip_text, skip_rect)
             
             # Update display
             pygame.display.flip()
@@ -123,42 +137,77 @@ class TurnTransitionScreen:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     exit()
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    return  # Skip waiting if space is pressed
+            
+            # Check GPIO buttons
+            button_states = self.get_button_states()
+            if button_states['fire']:
+                return  # Skip waiting if fire button is pressed
             
             # Short delay to prevent CPU hogging
-            pygame.time.delay(100)
+            pygame.time.delay(50)
     
-    def show_player_ready_screen(self, player):
+    def show_player_ready_screen(self, player, is_ai_mode=False, player_board=None):
         """
         Show a screen for the next player to get ready
         
         Args:
             player (int): The next player's number (1 or 2)
+            is_ai_mode (bool): Whether playing against AI
+            player_board: Player's own board to display (for AI mode)
         """
         # Fill background
         self.screen.fill(self.BLACK)
         
+        player_name = f"PLAYER {player}" if player == 1 or not is_ai_mode else "AI"
         # Draw title
-        title = self.title_font.render(f"PLAYER {player}'S TURN", True, self.WHITE)
-        title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
+        title = self.title_font.render(f"{player_name}'S TURN", True, self.WHITE)
+        title_rect = title.get_rect(center=(self.width // 2, self.height // 5))
         self.screen.blit(title, title_rect)
         
-        # Draw message
-        message = self.info_font.render(f"Player {player}, get ready for your turn!", True, self.LIGHT_BLUE)
-        message_rect = message.get_rect(center=(self.width // 2, self.height // 2 - 30))
+        # Different message depending on player
+        if player == 1 or not is_ai_mode:
+            # Human player message
+            message = self.info_font.render(f"Player {player}, get ready for your turn!", True, self.LIGHT_BLUE)
+        else:
+            # AI message
+            message = self.info_font.render("AI is preparing to take its turn...", True, self.LIGHT_BLUE)
+        
+        message_rect = message.get_rect(center=(self.width // 2, self.height // 3))
         self.screen.blit(message, message_rect)
         
-        # Draw privacy notice
-        privacy = self.info_font.render("Please make sure the other player isn't looking", True, self.LIGHT_GRAY)
-        privacy_rect = privacy.get_rect(center=(self.width // 2, self.height // 2 + 10))
-        self.screen.blit(privacy, privacy_rect)
+        # Draw player's board in AI mode if provided
+        if is_ai_mode and player_board is not None:
+            self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
+            board_title = self.info_font.render("Your Board", True, self.WHITE)
+            board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
+            self.screen.blit(board_title, board_title_rect)
+        
+        # Draw privacy notice for human vs human
+        if not is_ai_mode:
+            privacy = self.info_font.render("Please make sure the other player isn't looking", True, self.LIGHT_GRAY)
+            privacy_rect = privacy.get_rect(center=(self.width // 2, self.height // 2))
+            self.screen.blit(privacy, privacy_rect)
         
         # Draw continue prompt
-        prompt = self.info_font.render("Press FIRE button when ready", True, self.LIGHT_GRAY)
-        prompt_rect = prompt.get_rect(center=(self.width // 2, self.height // 2 + 80))
-        self.screen.blit(prompt, prompt_rect)
+        if player == 1 or not is_ai_mode:
+            prompt = self.info_font.render("Press FIRE button when ready", True, self.LIGHT_GRAY)
+            prompt_rect = prompt.get_rect(center=(self.width // 2, self.height - 60))
+            self.screen.blit(prompt, prompt_rect)
+        else:
+            # For AI mode, show auto-continue message
+            prompt = self.info_font.render("AI will play in a moment...", True, self.LIGHT_GRAY)
+            prompt_rect = prompt.get_rect(center=(self.width // 2, self.height - 60))
+            self.screen.blit(prompt, prompt_rect)
         
         # Update display
         pygame.display.flip()
+        
+        # For AI's turn, just wait briefly
+        if player == 2 and is_ai_mode:
+            pygame.time.delay(1500)  # Wait 1.5 seconds
+            return
         
         # Wait for fire button press
         waiting = True
@@ -177,4 +226,40 @@ class TurnTransitionScreen:
                 waiting = False
                 
             # Small delay to prevent CPU hogging
-            pygame.time.delay(100)
+            pygame.time.delay(50)
+            
+    def _draw_mini_board(self, board, center_x, center_y, cell_size):
+        """Draw a mini version of the game board"""
+        board_width = cell_size * 10
+        board_height = cell_size * 10
+        
+        # Calculate top-left corner from center position
+        top_x = center_x - (board_width // 2)
+        top_y = center_y - (board_height // 2)
+        
+        # Draw grid cells
+        for y in range(10):
+            for x in range(10):
+                cell_rect = pygame.Rect(
+                    top_x + x * cell_size,
+                    top_y + y * cell_size,
+                    cell_size - 1,
+                    cell_size - 1
+                )
+                
+                # Get cell value
+                cell_value = board[y][x]
+                
+                # Determine cell color
+                if cell_value == CellState.EMPTY.value:
+                    color = (50, 50, 50)  # Empty
+                elif cell_value == CellState.SHIP.value:
+                    color = (0, 255, 0)   # Ship
+                elif cell_value == CellState.HIT.value:
+                    color = (255, 0, 0)   # Hit
+                else:
+                    color = (0, 0, 255)   # Miss
+                
+                # Draw cell
+                pygame.draw.rect(self.screen, color, cell_rect)
+                pygame.draw.rect(self.screen, (100, 100, 100), cell_rect, 1)
