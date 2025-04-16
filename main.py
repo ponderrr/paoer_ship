@@ -4,10 +4,10 @@ import time
 import numpy as np
 import random
 from src.board.game_board import GameBoard, CellState
-from ship_placement_screen import ShipPlacementScreen
+from src.ui.ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
-from src.sounds.soundEffects.sound_manager import SoundManager
+from src.sound.sound_manager import SoundManager
 
 # Try to import GPIO support
 try:
@@ -235,8 +235,12 @@ def process_shot(x, y, shooter_board, target_board, shots_set):
     # Update the board state at the target location
     if hit:
         target_board.board[board_x, board_y] = CellState.HIT.value
+        sound_manager.play_sound("hit")
+        if ship_sunk:
+            sound_manager.play_sound("ship_sunk")
     else:
         target_board.board[board_x, board_y] = CellState.MISS.value
+        sound_manager.play_sound("miss")
 
     return hit, ship_sunk
 
@@ -255,8 +259,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
         import numpy as np
         import random
-        from turn_transition_screen import TurnTransitionScreen
-        from exit_confirmation import ExitConfirmation
+        from src.ui.turn_transition_screen import TurnTransitionScreen
+        from src.ui.exit_confirmation import ExitConfirmation
         from src.game.ai_opponent import AIOpponent, AIDifficulty
         from src.utils.image_display import ImageDisplay
 
@@ -683,6 +687,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     if (board_x, board_y) not in player2_shots:
                         player2_shots.add((board_x, board_y))
 
+                        # Play fire sound for AI
+                        sound_manager.play_sound("fire")
+
                         for ship in player1_board.ships:
                             if ship.receive_hit(board_x, board_y):
                                 hit = True
@@ -693,10 +700,17 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                             player1_board.board[board_x, board_y] = CellState.HIT.value
                             player2_view[board_x][board_y] = CellState.HIT.value
                             player1_own_view[board_x][board_y] = CellState.HIT.value
+                            # Play hit sound
+                            sound_manager.play_sound("hit")
+                            # Play ship sunk sound if needed
+                            if ship_sunk:
+                                sound_manager.play_sound("ship_sunk")
                         else:
                             player1_board.board[board_x, board_y] = CellState.MISS.value
                             player2_view[board_x][board_y] = CellState.MISS.value
                             player1_own_view[board_x][board_y] = CellState.MISS.value
+                            # Play miss sound
+                            sound_manager.play_sound("miss")
 
                         ai_opponent.process_shot_result(board_x, board_y, hit, ship_sunk)
 
