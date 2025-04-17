@@ -8,6 +8,7 @@ from src.ui.ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
 from src.sound.sound_manager import SoundManager
+from src.game.game_stats import GameStats
 
 # Try to import GPIO support
 try:
@@ -182,35 +183,108 @@ def quit_game():
     sys.exit()
 
 def settings_screen():
-    """Simplified settings screen"""
-    screen.fill(BLACK)
+    """Settings screen with volume controls"""
+    clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
-    text = font.render("Settings Screen (Placeholder)", True, WHITE)
-    screen.blit(text, (WIDTH//2 - 180, HEIGHT//2))
-
-    back_text = font.render("Press any key to return to menu", True, WHITE)
-    screen.blit(back_text, (WIDTH//2 - 180, HEIGHT//2 + 50))
-
-    pygame.display.flip()
-
-    waiting = True
-    while waiting:
+    small_font = pygame.font.Font(None, 24)
+    
+    # Initial volumes - get from sound manager if possible
+    sfx_volume = 0.7  # Initial sound effects volume (0.0 to 1.0)
+    music_volume = 0.5  # Initial music volume (0.0 to 1.0)
+    
+    # Bar settings
+    bar_width = 200
+    bar_height = 20
+    bar_x = WIDTH // 2 - bar_width // 2
+    sfx_bar_y = HEIGHT // 2 - 50
+    music_bar_y = HEIGHT // 2 + 20
+    
+    running = True
+    while running:
+        screen.fill(BLACK)
+        
+        # Title
+        title_text = font.render("Settings", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
+        screen.blit(title_text, title_rect)
+        
+        # Sound effect volume control
+        sfx_text = small_font.render("Sound Effects Volume:", True, WHITE)
+        sfx_text_rect = sfx_text.get_rect(left=bar_x, bottom=sfx_bar_y - 10)
+        screen.blit(sfx_text, sfx_text_rect)
+        
+        # Sound effect volume bar
+        pygame.draw.rect(screen, LIGHT_GRAY, (bar_x, sfx_bar_y, bar_width, bar_height), 1)
+        pygame.draw.rect(screen, LIGHT_BLUE, (bar_x, sfx_bar_y, int(bar_width * sfx_volume), bar_height))
+        
+        # Music volume control
+        music_text = small_font.render("Music Volume:", True, WHITE)
+        music_text_rect = music_text.get_rect(left=bar_x, bottom=music_bar_y - 10)
+        screen.blit(music_text, music_text_rect)
+        
+        # Music volume bar
+        pygame.draw.rect(screen, LIGHT_GRAY, (bar_x, music_bar_y, bar_width, bar_height), 1)
+        pygame.draw.rect(screen, LIGHT_BLUE, (bar_x, music_bar_y, int(bar_width * music_volume), bar_height))
+        
+        # Instructions
+        help_text = small_font.render("Left/Right: Adjust Volume | Mode/Escape: Back", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 180, HEIGHT - 60))
+        
+        test_text = small_font.render("Press Fire to test sound effects", True, LIGHT_GRAY)
+        screen.blit(test_text, (WIDTH // 2 - 120, HEIGHT - 30))
+        
+        # Process events
         for event in pygame.event.get():
-            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                waiting = False
-            elif event.type == pygame.QUIT:
+            if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
-        # Check for GPIO button presses
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    # Save volumes before exiting
+                    sound_manager.set_volume(sfx_volume)
+                    sound_manager.set_music_volume(music_volume)
+                    running = False
+                elif event.key == pygame.K_LEFT:
+                    # Decrease selected volume
+                    sfx_volume = max(0.0, sfx_volume - 0.1)
+                    sound_manager.set_volume(sfx_volume)
+                elif event.key == pygame.K_RIGHT:
+                    # Increase selected volume
+                    sfx_volume = min(1.0, sfx_volume + 0.1)
+                    sound_manager.set_volume(sfx_volume)
+                elif event.key == pygame.K_DOWN:
+                    # Switch to music volume
+                    pass
+                elif event.key == pygame.K_UP:
+                    # Switch to sfx volume
+                    pass
+                elif event.key == pygame.K_SPACE:
+                    # Test sound effect
+                    sound_manager.play_sound("fire")
+        
+        # Handle GPIO input
         button_states = gpio_handler.get_button_states()
-        if any(button_states.values()):
-            waiting = False
+        if button_states['mode']:
+            # Save volumes before exiting
+            sound_manager.set_volume(sfx_volume)
+            sound_manager.set_music_volume(music_volume)
+            running = False
+        elif button_states['left']:
+            # Decrease selected volume
+            sfx_volume = max(0.0, sfx_volume - 0.1)
+            sound_manager.set_volume(sfx_volume)
+        elif button_states['right']:
+            # Increase selected volume
+            sfx_volume = min(1.0, sfx_volume + 0.1)
+            sound_manager.set_volume(sfx_volume)
+        elif button_states['fire']:
+            # Test sound effect
+            sound_manager.play_sound("fire")
+        
+        pygame.display.flip()
+        clock.tick(30)
 
-        # Small delay to prevent CPU hogging
-        time.sleep(0.01)
-
-def process_shot(x, y, shooter_board, target_board, shots_set):
+def process_shot(x, y, shooter_board, target_board, shots_set, player_stats=None):
     """Process a shot from one player to another's board"""
     # Swap coordinates for internal board representation
     # x = column (A-J), y = row (1-10)
@@ -232,6 +306,10 @@ def process_shot(x, y, shooter_board, target_board, shots_set):
             ship_sunk = ship.is_sunk()
             break
 
+    # Update statistics if provided
+    if player_stats:
+        player_stats.record_shot(hit, ship_sunk)
+
     # Update the board state at the target location
     if hit:
         target_board.board[board_x, board_y] = CellState.HIT.value
@@ -243,6 +321,256 @@ def process_shot(x, y, shooter_board, target_board, shots_set):
         sound_manager.play_sound("miss")
 
     return hit, ship_sunk
+
+def show_game_stats(winner_stats, loser_stats=None):
+    """Display end-game statistics"""
+    screen.fill(BLACK)
+    font = pygame.font.Font(None, 36)
+    small_font = pygame.font.Font(None, 24)
+    
+    # Title
+    if loser_stats:
+        title_text = font.render(f"Player {winner_stats.player_id} Wins!", True, (255, 215, 0))
+    else:
+        title_text = font.render("Game Statistics", True, WHITE)
+    
+    title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
+    screen.blit(title_text, title_rect)
+    
+    # Winner stats
+    y_pos = 150
+    winner_title = small_font.render(f"Player {winner_stats.player_id} Statistics:", True, LIGHT_BLUE)
+    screen.blit(winner_title, (WIDTH // 4, y_pos))
+    
+    winner_summary = winner_stats.get_stats_summary()
+    for i, (stat, value) in enumerate(winner_summary.items()):
+        if stat != "player_id":
+            stat_text = small_font.render(f"{stat.replace('_', ' ').title()}: {value}", True, WHITE)
+            screen.blit(stat_text, (WIDTH // 4, y_pos + 30 + i * 25))
+    
+    # Loser stats (if any)
+    if loser_stats:
+        loser_title = small_font.render(f"Player {loser_stats.player_id} Statistics:", True, LIGHT_BLUE)
+        screen.blit(loser_title, (WIDTH // 4 * 3, y_pos))
+        
+        loser_summary = loser_stats.get_stats_summary()
+        for i, (stat, value) in enumerate(loser_summary.items()):
+            if stat != "player_id":
+                stat_text = small_font.render(f"{stat.replace('_', ' ').title()}: {value}", True, WHITE)
+                screen.blit(stat_text, (WIDTH // 4 * 3, y_pos + 30 + i * 25))
+    
+    # Continue prompt
+    prompt = small_font.render("Press any key to continue", True, LIGHT_GRAY)
+    prompt_rect = prompt.get_rect(center=(WIDTH // 2, HEIGHT - 40))
+    screen.blit(prompt, prompt_rect)
+    
+    pygame.display.flip()
+    
+    # Wait for input
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+                waiting = False
+        
+        # Check GPIO buttons
+        button_states = gpio_handler.get_button_states()
+        if any(button_states.values()):
+            waiting = False
+        
+        pygame.time.delay(10)
+
+def pause_menu():
+    """Display a pause menu during gameplay"""
+    # Overlay a semi-transparent background
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))  # Black with 70% opacity
+    screen.blit(overlay, (0, 0))
+    
+    font = pygame.font.Font(None, 48)
+    small_font = pygame.font.Font(None, 24)
+    
+    # Title
+    title_text = font.render("PAUSED", True, WHITE)
+    title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 4))
+    screen.blit(title_text, title_rect)
+    
+    # Options
+    options = ["Resume Game", "Settings", "Quit to Menu"]
+    selected_option = 0
+    
+    # Draw options
+    for i, option in enumerate(options):
+        color = LIGHT_BLUE if i == selected_option else WHITE
+        option_text = font.render(option, True, color)
+        option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+        screen.blit(option_text, option_rect)
+        
+        if i == selected_option:
+            # Draw selection indicator
+            pygame.draw.rect(screen, color, 
+                            (option_rect.left - 10, option_rect.top - 5,
+                             option_rect.width + 20, option_rect.height + 10), 
+                            2, border_radius=5)
+    
+    # Controls help
+    help_text = small_font.render("Up/Down: Navigate | Fire: Select | Mode: Resume", True, LIGHT_GRAY)
+    help_rect = help_text.get_rect(center=(WIDTH // 2, HEIGHT - 30))
+    screen.blit(help_text, help_rect)
+    
+    pygame.display.flip()
+    
+    # Handle input
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    return "resume"  # Resume the game
+                elif event.key == pygame.K_UP:
+                    selected_option = (selected_option - 1) % len(options)
+                    # Redraw options with new selection
+                    screen.blit(overlay, (0, 0))
+                    screen.blit(title_text, title_rect)
+                    
+                    for i, option in enumerate(options):
+                        color = LIGHT_BLUE if i == selected_option else WHITE
+                        option_text = font.render(option, True, color)
+                        option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+                        screen.blit(option_text, option_rect)
+                        
+                        if i == selected_option:
+                            pygame.draw.rect(screen, color, 
+                                            (option_rect.left - 10, option_rect.top - 5,
+                                             option_rect.width + 20, option_rect.height + 10), 
+                                            2, border_radius=5)
+                    
+                    screen.blit(help_text, help_rect)
+                    pygame.display.flip()
+                    
+                elif event.key == pygame.K_DOWN:
+                    selected_option = (selected_option + 1) % len(options)
+                    # Redraw options with new selection
+                    screen.blit(overlay, (0, 0))
+                    screen.blit(title_text, title_rect)
+                    
+                    for i, option in enumerate(options):
+                        color = LIGHT_BLUE if i == selected_option else WHITE
+                        option_text = font.render(option, True, color)
+                        option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+                        screen.blit(option_text, option_rect)
+                        
+                        if i == selected_option:
+                            pygame.draw.rect(screen, color, 
+                                            (option_rect.left - 10, option_rect.top - 5,
+                                             option_rect.width + 20, option_rect.height + 10), 
+                                            2, border_radius=5)
+                    
+                    screen.blit(help_text, help_rect)
+                    pygame.display.flip()
+                    
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    if selected_option == 0:
+                        return "resume"
+                    elif selected_option == 1:
+                        settings_screen()
+                        # Redraw pause menu after returning from settings
+                        screen.blit(overlay, (0, 0))
+                        screen.blit(title_text, title_rect)
+                        
+                        for i, option in enumerate(options):
+                            color = LIGHT_BLUE if i == selected_option else WHITE
+                            option_text = font.render(option, True, color)
+                            option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+                            screen.blit(option_text, option_rect)
+                            
+                            if i == selected_option:
+                                pygame.draw.rect(screen, color, 
+                                                (option_rect.left - 10, option_rect.top - 5,
+                                                 option_rect.width + 20, option_rect.height + 10), 
+                                                2, border_radius=5)
+                        
+                        screen.blit(help_text, help_rect)
+                        pygame.display.flip()
+                    elif selected_option == 2:
+                        return "quit"
+        
+        # Handle GPIO buttons
+        button_states = gpio_handler.get_button_states()
+        if button_states['mode']:
+            return "resume"
+        elif button_states['up']:
+            selected_option = (selected_option - 1) % len(options)
+            # Redraw options with new selection (similar to keyboard redraw)
+            screen.blit(overlay, (0, 0))
+            screen.blit(title_text, title_rect)
+            
+            for i, option in enumerate(options):
+                color = LIGHT_BLUE if i == selected_option else WHITE
+                option_text = font.render(option, True, color)
+                option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+                screen.blit(option_text, option_rect)
+                
+                if i == selected_option:
+                    pygame.draw.rect(screen, color, 
+                                    (option_rect.left - 10, option_rect.top - 5,
+                                     option_rect.width + 20, option_rect.height + 10), 
+                                    2, border_radius=5)
+            
+            screen.blit(help_text, help_rect)
+            pygame.display.flip()
+        elif button_states['down']:
+            selected_option = (selected_option + 1) % len(options)
+            # Redraw options with new selection (similar to keyboard redraw)
+            screen.blit(overlay, (0, 0))
+            screen.blit(title_text, title_rect)
+            
+            for i, option in enumerate(options):
+                color = LIGHT_BLUE if i == selected_option else WHITE
+                option_text = font.render(option, True, color)
+                option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+                screen.blit(option_text, option_rect)
+                
+                if i == selected_option:
+                    pygame.draw.rect(screen, color, 
+                                    (option_rect.left - 10, option_rect.top - 5,
+                                     option_rect.width + 20, option_rect.height + 10), 
+                                    2, border_radius=5)
+            
+            screen.blit(help_text, help_rect)
+            pygame.display.flip()
+        elif button_states['fire']:
+            if selected_option == 0:
+                return "resume"
+            elif selected_option == 1:
+                settings_screen()
+                # Redraw pause menu after returning from settings
+                screen.blit(overlay, (0, 0))
+                screen.blit(title_text, title_rect)
+                
+                for i, option in enumerate(options):
+                    color = LIGHT_BLUE if i == selected_option else WHITE
+                    option_text = font.render(option, True, color)
+                    option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 60))
+                    screen.blit(option_text, option_rect)
+                    
+                    if i == selected_option:
+                        pygame.draw.rect(screen, color, 
+                                        (option_rect.left - 10, option_rect.top - 5,
+                                         option_rect.width + 20, option_rect.height + 10), 
+                                        2, border_radius=5)
+                
+                screen.blit(help_text, help_rect)
+                pygame.display.flip()
+            elif selected_option == 2:
+                return "quit"
+        
+        pygame.time.delay(10)
 
 def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_board=None):
     """
@@ -267,6 +595,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         clock = pygame.time.Clock()
         font = pygame.font.Font(None, 36)
         small_font = pygame.font.Font(None, 24)
+        player1_stats = GameStats(1)
+        player2_stats = GameStats(2)
 
         if player1_board is None:
             player1_board = GameBoard()
@@ -344,10 +674,167 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             screen.blit(exit_text, (20, HEIGHT - 30))
 
             if showing_exit_dialog:
-                if exit_dialog.show():
-                    running = False
-                    break
-                showing_exit_dialog = False
+                # Create overlay for dialog
+                overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 180))  # Black with 70% opacity
+                screen.blit(overlay, (0, 0))
+                
+                # Menu title
+                menu_font = pygame.font.Font(None, 36)
+                title_text = menu_font.render("Game Menu", True, WHITE)
+                title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
+                screen.blit(title_text, title_rect)
+                
+                # Options
+                menu_options = ["Pause Game", "Exit Game", "Cancel"]
+                selected_option = 0
+                
+                for i, option in enumerate(menu_options):
+                    color = LIGHT_BLUE if i == selected_option else WHITE
+                    option_text = menu_font.render(option, True, color)
+                    option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                    screen.blit(option_text, option_rect)
+                    
+                    if i == selected_option:
+                        pygame.draw.rect(screen, color, 
+                                       (option_rect.left - 10, option_rect.top - 5,
+                                        option_rect.width + 20, option_rect.height + 10), 
+                                       2, border_radius=5)
+                
+                pygame.display.flip()
+                
+                # Wait for selection
+                waiting = True
+                while waiting:
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            pygame.quit()
+                            sys.exit()
+                        elif event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_UP:
+                                selected_option = (selected_option - 1) % len(menu_options)
+                                # Redraw options
+                                screen.blit(overlay, (0, 0))
+                                screen.blit(title_text, title_rect)
+                                
+                                for i, option in enumerate(menu_options):
+                                    color = LIGHT_BLUE if i == selected_option else WHITE
+                                    option_text = menu_font.render(option, True, color)
+                                    option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                                    screen.blit(option_text, option_rect)
+                                    
+                                    if i == selected_option:
+                                        pygame.draw.rect(screen, color, 
+                                                       (option_rect.left - 10, option_rect.top - 5,
+                                                        option_rect.width + 20, option_rect.height + 10), 
+                                                       2, border_radius=5)
+                                
+                                pygame.display.flip()
+                                
+                            elif event.key == pygame.K_DOWN:
+                                selected_option = (selected_option + 1) % len(menu_options)
+                                # Redraw options
+                                screen.blit(overlay, (0, 0))
+                                screen.blit(title_text, title_rect)
+                                
+                                for i, option in enumerate(menu_options):
+                                    color = LIGHT_BLUE if i == selected_option else WHITE
+                                    option_text = menu_font.render(option, True, color)
+                                    option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                                    screen.blit(option_text, option_rect)
+                                    
+                                    if i == selected_option:
+                                        pygame.draw.rect(screen, color, 
+                                                       (option_rect.left - 10, option_rect.top - 5,
+                                                        option_rect.width + 20, option_rect.height + 10), 
+                                                       2, border_radius=5)
+                                
+                                pygame.display.flip()
+                                
+                            elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                                waiting = False
+                                if selected_option == 0:  # Pause
+                                    pause_result = pause_menu()
+                                    if pause_result == "quit":
+                                        running = False
+                                        break
+                                    showing_exit_dialog = False
+                                elif selected_option == 1:  # Exit
+                                    if exit_dialog.show():
+                                        running = False
+                                        break
+                                    showing_exit_dialog = False
+                                else:  # Cancel
+                                    showing_exit_dialog = False
+                            
+                            elif event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                                waiting = False
+                                showing_exit_dialog = False
+                    
+                    # Check for GPIO inputs
+                    button_states = gpio_handler.get_button_states()
+                    if button_states['up']:
+                        selected_option = (selected_option - 1) % len(menu_options)
+                        # Redraw options
+                        screen.blit(overlay, (0, 0))
+                        screen.blit(title_text, title_rect)
+                        
+                        for i, option in enumerate(menu_options):
+                            color = LIGHT_BLUE if i == selected_option else WHITE
+                            option_text = menu_font.render(option, True, color)
+                            option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                            screen.blit(option_text, option_rect)
+                            
+                            if i == selected_option:
+                                pygame.draw.rect(screen, color, 
+                                               (option_rect.left - 10, option_rect.top - 5,
+                                                option_rect.width + 20, option_rect.height + 10), 
+                                               2, border_radius=5)
+                        
+                        pygame.display.flip()
+                        
+                    elif button_states['down']:
+                        selected_option = (selected_option + 1) % len(menu_options)
+                        # Redraw options
+                        screen.blit(overlay, (0, 0))
+                        screen.blit(title_text, title_rect)
+                        
+                        for i, option in enumerate(menu_options):
+                            color = LIGHT_BLUE if i == selected_option else WHITE
+                            option_text = menu_font.render(option, True, color)
+                            option_rect = option_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                            screen.blit(option_text, option_rect)
+                            
+                            if i == selected_option:
+                                pygame.draw.rect(screen, color, 
+                                               (option_rect.left - 10, option_rect.top - 5,
+                                                option_rect.width + 20, option_rect.height + 10), 
+                                               2, border_radius=5)
+                        
+                        pygame.display.flip()
+                        
+                    elif button_states['fire']:
+                        waiting = False
+                        if selected_option == 0:  # Pause
+                            pause_result = pause_menu()
+                            if pause_result == "quit":
+                                running = False
+                                break
+                            showing_exit_dialog = False
+                        elif selected_option == 1:  # Exit
+                            if exit_dialog.show():
+                                running = False
+                                break
+                            showing_exit_dialog = False
+                        else:  # Cancel
+                            showing_exit_dialog = False
+                    
+                    elif button_states['mode']:
+                        waiting = False
+                        showing_exit_dialog = False
+                    
+                    pygame.time.delay(50)
+                
                 continue
 
             if current_player == 1:
@@ -429,6 +916,12 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE or event.key == pygame.K_TAB:
                             showing_exit_dialog = True
+                        elif event.key == pygame.K_p:  # Add 'P' key for pause
+                            pause_result = pause_menu()
+                            if pause_result == "quit":
+                                running = False
+                                break
+                            # Game continues if "resume" was selected
 
                         if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)):
                             if event.key == pygame.K_UP and cursor_y > 0:
@@ -449,7 +942,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     board_x, board_y = cursor_y, cursor_x
 
                                     if (board_x, board_y) not in player1_shots:
-                                        hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
+                                        hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots, player1_stats)
 
                                         if hit:
                                             player1_view[cursor_y][cursor_x] = CellState.HIT.value
@@ -481,6 +974,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                         new_winner = check_game_over()
                                         if new_winner:
                                             winner = new_winner
+                                            if winner == 1:
+                                                show_game_stats(player1_stats, player2_stats)
+                                            else:
+                                                show_game_stats(player2_stats, player1_stats)
                                             pygame.display.flip()
                                             time.sleep(1)
                                             turn_in_progress = False
@@ -509,7 +1006,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 elif current_player == 2 and not ai_mode:
                                     board_x, board_y = cursor_y, cursor_x
                                     if (board_x, board_y) not in player2_shots:
-                                        hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots)
+                                        hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots, player2_stats)
 
                                         if hit:
                                             player2_view[cursor_y][cursor_x] = CellState.HIT.value
@@ -521,6 +1018,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                         new_winner = check_game_over()
                                         if new_winner:
                                             winner = new_winner
+                                            if winner == 1:
+                                                show_game_stats(player1_stats, player2_stats)
+                                            else:
+                                                show_game_stats(player2_stats, player1_stats)
                                             pygame.display.flip()
                                             time.sleep(1)
                                             turn_in_progress = False
@@ -538,6 +1039,13 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
                 if button_states['mode']:
                     showing_exit_dialog = True
+                # Add pause function for GPIO buttons (rotate + fire combination)
+                elif button_states['rotate'] and button_states['fire']:
+                    pause_result = pause_menu()
+                    if pause_result == "quit":
+                        running = False
+                        break
+                    # Game continues if "resume" was selected
 
                 if not winner and (current_player == 1 or (current_player == 2 and not ai_mode)):
                     if button_states['up'] and cursor_y > 0:
@@ -558,7 +1066,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         if current_player == 1:
                             board_x, board_y = cursor_y, cursor_x
                             if (board_x, board_y) not in player1_shots:
-                                hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots)
+                                hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player2_board, player1_shots, player1_stats)
 
                                 if hit:
                                     player1_view[cursor_y][cursor_x] = CellState.HIT.value
@@ -592,6 +1100,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 new_winner = check_game_over()
                                 if new_winner:
                                     winner = new_winner
+                                    if winner == 1:
+                                        show_game_stats(player1_stats, player2_stats)
+                                    else:
+                                        show_game_stats(player2_stats, player1_stats)
                                     pygame.display.flip()
                                     time.sleep(1)
                                     turn_in_progress = False
@@ -622,7 +1134,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         elif current_player == 2 and not ai_mode:
                             board_x, board_y = cursor_y, cursor_x
                             if (board_x, board_y) not in player2_shots:
-                                hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots)
+                                hit, ship_sunk = process_shot(cursor_x, cursor_y, None, player1_board, player2_shots, player2_stats)
 
                                 if hit:
                                     player2_view[cursor_y][cursor_x] = CellState.HIT.value
@@ -634,6 +1146,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 new_winner = check_game_over()
                                 if new_winner:
                                     winner = new_winner
+                                    if winner == 1:
+                                        show_game_stats(player1_stats, player2_stats)
+                                    else:
+                                        show_game_stats(player2_stats, player1_stats)
                                     pygame.display.flip()
                                     time.sleep(1)
                                     turn_in_progress = False
@@ -732,6 +1248,10 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     new_winner = check_game_over()
                     if new_winner:
                         winner = new_winner
+                        if winner == 1:
+                            show_game_stats(player1_stats, player2_stats)
+                        else:
+                            show_game_stats(player2_stats, player1_stats)
                     else:
                         transition_screen.show_turn_result(
                             2,
