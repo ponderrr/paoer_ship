@@ -5,7 +5,7 @@ class SoundManager:
     """
     Handles game sound effects and music
     """
-    def __init__(self, sound_dir="assets/sounds"):
+    def __init__(self, sound_dir="src/sounds"): 
         """
         Initialize the sound manager.
         
@@ -26,7 +26,7 @@ class SoundManager:
             self.sounds["fire"] = self._load_sound("fire.mp3")
             self.sounds["hit"] = self._load_sound("hit.mp3")
             self.sounds["miss"] = self._load_sound("miss.mp3")
-            self.sounds["ship_sunk"] = self._load_sound("ship-sunk.mp3")
+            self.sounds["ship_sunk"] = self._load_sound("ship-sunk.mp3")  
             self._load_background_music("background.mp3")
         except Exception as e:
             print(f"Warning: Could not load sounds: {e}")
