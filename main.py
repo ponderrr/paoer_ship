@@ -8,6 +8,7 @@ from src.ui.ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
 from src.sound.sound_manager import SoundManager
+from src.utils.constants import BACKGROUND_COLORS
 
 # Try to import GPIO support
 try:
@@ -40,6 +41,9 @@ button_font = pygame.font.Font(None, 30)
 sound_manager = SoundManager()
 # Optionally start the background music
 sound_manager.start_background_music()
+
+selected_background_color = BACKGROUND_COLORS["Black"]
+
 
 class GPIOHandler:
     def __init__(self):
@@ -183,7 +187,7 @@ def quit_game():
 
 def settings_screen():
     """Simplified settings screen"""
-    screen.fill(BLACK)
+    screen.fill(selected_background_color)
     font = pygame.font.Font(None, 36)
     text = font.render("Settings Screen (Placeholder)", True, WHITE)
     screen.blit(text, (WIDTH//2 - 180, HEIGHT//2))
@@ -209,6 +213,60 @@ def settings_screen():
 
         # Small delay to prevent CPU hogging
         time.sleep(0.01)
+
+def select_background_color():
+    global selected_background_color
+    clock = pygame.time.Clock()
+    font = pygame.font.Font(None, 36)
+    colors = list(BACKGROUND_COLORS.keys())
+    selected = 0
+
+    selecting = True
+    while selecting:
+        screen.fill(BLACK)
+
+        title_text = font.render("Select Background Color", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
+        screen.blit(title_text, title_rect)
+
+        for i, color in enumerate(colors):
+            color_text = font.render(color, True, LIGHT_BLUE if i == selected else WHITE)
+            color_rect = color_text.get_rect(center=(WIDTH // 2, 180 + i * 40))
+            screen.blit(color_text, color_rect)
+
+        help_font = pygame.font.Font(None, 24)
+        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 180, HEIGHT - 40))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    selecting = False
+                elif event.key == pygame.K_UP:
+                    selected = (selected - 1) % len(colors)
+                elif event.key == pygame.K_DOWN:
+                    selected = (selected + 1) % len(colors)
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    selected_background_color = BACKGROUND_COLORS[colors[selected]]
+                    selecting = False
+
+        button_states = gpio_handler.get_button_states()
+        if button_states['up']:
+            selected = (selected - 1) % len(colors)
+        if button_states['down']:
+            selected = (selected + 1) % len(colors)
+        if button_states['fire']:
+            selected_background_color = BACKGROUND_COLORS[colors[selected]]
+            selecting = False
+        if button_states['mode']:
+            selecting = False
+
+        pygame.display.flip()
+        clock.tick(30)
+
 
 def process_shot(x, y, shooter_board, target_board, shots_set):
     """Process a shot from one player to another's board"""
@@ -335,7 +393,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         running = True
         while running:
             current_time = pygame.time.get_ticks()
-            screen.fill(BLACK)
+            screen.fill(selected_background_color)
 
             mode_text = font.render(game_mode_text, True, WHITE)
             screen.blit(mode_text, (WIDTH - 200, 20))
@@ -457,7 +515,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             player1_view[cursor_y][cursor_x] = CellState.MISS.value
 
                                             if pao_mode:
-                                                screen.fill(BLACK)
+                                                screen.fill(selected_background_color)
                                                 draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
                                                 draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
 
@@ -575,7 +633,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             True,
                                             player1_own_view
                                         )
-                                        screen.fill(BLACK)
+                                        screen.fill(selected_background_color)
                                         pao_warning = font.render("PAO MODE ACTIVATED - YOU LOSE!", True, (255, 0, 0))
                                         warning_rect = pao_warning.get_rect(center=(WIDTH // 2, HEIGHT // 2))
                                         screen.blit(pao_warning, warning_rect)
@@ -658,7 +716,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 else:
                     thinking_time = random.uniform(1.5, 2.0)
 
-                screen.fill(BLACK)
+                screen.fill(selected_background_color)
                 draw_board(screen, font, player2_view, 150, 80, 30, -1, -1, False, "AI's Shot")
                 draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
                 thinking_text = small_font.render("AI is thinking...", True, WHITE)
@@ -714,7 +772,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
                         ai_opponent.process_shot_result(board_x, board_y, hit, ship_sunk)
 
-                    screen.fill(BLACK)
+                    screen.fill(selected_background_color)
                     draw_board(screen, font, player2_view, 150, 80, 30, display_x, display_y, True, "AI's Shot")
                     draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
 
@@ -831,7 +889,7 @@ def game_mode_select():
 
     running = True
     while running:
-        screen.fill(BLACK)
+        screen.fill(selected_background_color)
         title_text = font.render("Select Game Mode", True, WHITE)
         title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
         screen.blit(title_text, title_rect)
@@ -943,6 +1001,7 @@ def main_menu():
     buttons = [
         Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
         Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
+        Button(center_x, start_y + spacing * 2, button_width, button_height, "Background Color", select_background_color),
         Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
     ]
 
@@ -952,7 +1011,7 @@ def main_menu():
     running = True
 
     while running:
-        screen.fill(BLACK)
+        screen.fill(selected_background_color)
         title_text = title_font.render("Pao'er Ship", True, WHITE)
         title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
         screen.blit(title_text, title_rect)

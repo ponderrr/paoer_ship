@@ -36,3 +36,11 @@ INPUT_MOVE_RIGHT = "d"
 GAME_STATE_SETUP = "setup"
 GAME_STATE_PLAYING = "playing"
 GAME_STATE_GAME_OVER = "game_over"
+
+# Background Colors
+BACKGROUND_COLORS = {
+    "Black": (0, 0, 0),
+    "White": (255, 255, 255),
+    "Navy": (0, 0, 128),
+    "Gray": (128, 128, 128)
+}
