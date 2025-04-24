@@ -1,4 +1,5 @@
 import pygame
+import numpy as np
 import random
 import time
 import sys
@@ -82,6 +83,43 @@ class ShipPlacementScreen:
             'mode': False,
             'rotate': False  # New button for rotation
         }
+        
+        # Sound for invalid actions
+        self.invalid_sound = None
+        try:
+            # Try to create a simple beep sound
+            self.create_invalid_sound()
+        except Exception as e:
+            print(f"Warning: Could not create invalid sound: {e}")
+    
+    def create_invalid_sound(self):
+        """Create a simple beep sound for invalid actions"""
+        # Create a simple sine wave beep
+        frequency = 220  # Frequency in Hz (A3 note)
+        duration = 0.1   # Duration in seconds
+        sample_rate = 44100
+        
+        # Generate the samples
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        note = np.sin(frequency * t * 2 * np.pi)
+        
+        # Ensure the sound is in the correct format
+        audio = note * (2**15 - 1) / np.max(np.abs(note))
+        audio = audio.astype(np.int16)
+        
+        # Create a stereo sound
+        stereo_audio = np.column_stack((audio, audio))
+        
+        # Create the sound object
+        self.invalid_sound = pygame.sndarray.make_sound(stereo_audio)
+    
+    def play_invalid_sound(self):
+        """Play the invalid action sound"""
+        if self.invalid_sound:
+            try:
+                self.invalid_sound.play()
+            except Exception as e:
+                print(f"Error playing invalid sound: {e}")
     
     def check_placement_validity(self):
         """Check if the current ship can be placed at the current position"""
@@ -256,31 +294,67 @@ class ShipPlacementScreen:
             ship_name, ship_length = self.ship_types[self.current_ship_index]
             
             moved = False
+            hit_boundary = False
             
             # Up button pressed
-            if button_states['up'] and self.cursor_y > 0:
-                self.cursor_y -= 1
-                moved = True
-                
+            if button_states['up']:
+                if self.cursor_y > 0:
+                    self.cursor_y -= 1
+                    moved = True
+                else:
+                    hit_boundary = True
+                    
             # Down button pressed
-            if button_states['down'] and self.cursor_y < 9:
-                self.cursor_y += 1
-                moved = True
+            if button_states['down']:
+                if self.cursor_y < 9:
+                    self.cursor_y += 1
+                    moved = True
+                else:
+                    hit_boundary = True
                 
             # Left button pressed
-            if button_states['left'] and self.cursor_x > 0:
-                self.cursor_x -= 1
-                moved = True
+            if button_states['left']:
+                if self.cursor_x > 0:
+                    self.cursor_x -= 1
+                    moved = True
+                else:
+                    hit_boundary = True
                 
             # Right button pressed
-            if button_states['right'] and self.cursor_x < 9:
-                self.cursor_x += 1
-                moved = True
+            if button_states['right']:
+                # Check if moving right would make the ship go off board
+                max_x = 9
+                if self.current_ship_horizontal and ship_length > 1:
+                    max_x = 10 - ship_length
+                
+                if self.cursor_x < max_x:
+                    self.cursor_x += 1
+                    moved = True
+                else:
+                    hit_boundary = True
+                    
+            # Play boundary hit sound
+            if hit_boundary:
+                self.play_invalid_sound()
+                self.move_delay = current_time + 150
                 
             # Rotate button pressed
             if button_states['rotate']:
-                self.current_ship_horizontal = not self.current_ship_horizontal
-                moved = True
+                # Check if rotation would be valid (not off board)
+                if self.current_ship_horizontal:
+                    # Trying to switch to vertical
+                    if self.cursor_x + ship_length <= 10:
+                        self.current_ship_horizontal = False
+                        moved = True
+                    else:
+                        self.play_invalid_sound()
+                else:
+                    # Trying to switch to horizontal
+                    if self.cursor_y + ship_length <= 10:
+                        self.current_ship_horizontal = True
+                        moved = True
+                    else:
+                        self.play_invalid_sound()
                 
             # Check if the current placement is valid after movement
             if moved:
@@ -288,8 +362,11 @@ class ShipPlacementScreen:
                 self.move_delay = current_time + 150
                 
             # Fire button pressed (place ship)
-            if button_states['fire'] and self.placement_valid:
-                self.place_current_ship(board)
+            if button_states['fire']:
+                if self.placement_valid:
+                    self.place_current_ship(board)
+                else:
+                    self.play_invalid_sound()
                 
             # Mode button pressed (reset placement)
             if button_states['mode']:
