@@ -197,17 +197,19 @@ def quit_game():
     sys.exit()
 
 def settings_screen():
-    """Settings screen with volume controls"""
+    """Settings screen with volume controls, shuffle and repeat options"""
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
     small_font = pygame.font.Font(None, 24)
     
-    # Get current volumes
+    # Get current volumes and states
     music_volume = sound_manager.get_music_volume()
     sfx_volume = sound_manager.get_sfx_volume()
+    shuffle_state = sound_manager.get_shuffle_state()
+    repeat_state = sound_manager.get_repeat_state()
     
     # Settings options
-    settings_options = ["Music Volume", "SFX Volume", "Back to Menu"]
+    settings_options = ["Music Volume", "SFX Volume", "Shuffle", "Repeat", "Back to Menu"]
     current_option = 0
     
     running = True
@@ -276,8 +278,20 @@ def settings_screen():
         sfx_volume_rect = sfx_volume_text.get_rect(center=(WIDTH // 2 + 150, sfx_bar_y + sfx_bar_height // 2))
         screen.blit(sfx_volume_text, sfx_volume_rect)
         
+        # Shuffle option
+        shuffle_color = (0, 255, 0) if shuffle_state else (255, 0, 0)
+        shuffle_text = small_font.render(f"{'ON' if shuffle_state else 'OFF'}", True, shuffle_color)
+        shuffle_rect = shuffle_text.get_rect(center=(WIDTH // 2 + 150, 300 + 10))
+        screen.blit(shuffle_text, shuffle_rect)
+        
+        # Repeat option
+        repeat_color = (0, 255, 0) if repeat_state else (255, 0, 0)
+        repeat_text = small_font.render(f"{'ON' if repeat_state else 'OFF'}", True, repeat_color)
+        repeat_rect = repeat_text.get_rect(center=(WIDTH // 2 + 150, 360 + 10))
+        screen.blit(repeat_text, repeat_rect)
+        
         # Help text
-        help_text = small_font.render("Up/Down: Navigate | Left/Right: Adjust | Fire: Select | Mode: Back", 
+        help_text = small_font.render("Up/Down: Navigate | Left/Right: Adjust | Fire: Toggle/Select | Mode: Back", 
                                     True, LIGHT_GRAY)
         help_rect = help_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
         screen.blit(help_text, help_rect)
@@ -312,7 +326,13 @@ def settings_screen():
                         sound_manager.set_volume(sfx_volume)
                         sound_manager.play_sound("navigate_up")  # Test the volume
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    if current_option == 2:  # Back to menu
+                    if current_option == 2:  # Shuffle
+                        shuffle_state = sound_manager.toggle_shuffle()
+                        sound_manager.play_sound("accept")
+                    elif current_option == 3:  # Repeat
+                        repeat_state = sound_manager.toggle_repeat()
+                        sound_manager.play_sound("accept")
+                    elif current_option == 4:  # Back to menu
                         sound_manager.play_sound("back")
                         running = False
                 elif event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
@@ -349,7 +369,13 @@ def settings_screen():
                 sound_manager.play_sound("navigate_up")  # Test the volume
                 
         if button_states['fire']:
-            if current_option == 2:  # Back to menu
+            if current_option == 2:  # Shuffle
+                shuffle_state = sound_manager.toggle_shuffle()
+                sound_manager.play_sound("accept")
+            elif current_option == 3:  # Repeat
+                repeat_state = sound_manager.toggle_repeat()
+                sound_manager.play_sound("accept")
+            elif current_option == 4:  # Back to menu
                 sound_manager.play_sound("back")
                 running = False
                 
