@@ -38,8 +38,10 @@ button_font = pygame.font.Font(None, 30)
 
 # Create a SoundManager instance
 sound_manager = SoundManager()
-# Optionally start the background music
 sound_manager.start_background_music()
+sound_manager.set_music_volume(0.3)  # 30% for music
+sound_manager.set_volume(0.4)        # 40% for sound effects
+
 
 class GPIOHandler:
     def __init__(self):
@@ -195,33 +197,168 @@ def quit_game():
     sys.exit()
 
 def settings_screen():
-    """Simplified settings screen"""
-    screen.fill(BLACK)
+    """Settings screen with volume controls"""
+    clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
-    text = font.render("Settings Screen (Placeholder)", True, WHITE)
-    screen.blit(text, (WIDTH//2 - 180, HEIGHT//2))
-
-    back_text = font.render("Press any key to return to menu", True, WHITE)
-    screen.blit(back_text, (WIDTH//2 - 180, HEIGHT//2 + 50))
-
-    pygame.display.flip()
-
-    waiting = True
-    while waiting:
+    small_font = pygame.font.Font(None, 24)
+    
+    # Get current volumes
+    music_volume = sound_manager.get_music_volume()
+    sfx_volume = sound_manager.get_sfx_volume()
+    
+    # Settings options
+    settings_options = ["Music Volume", "SFX Volume", "Back to Menu"]
+    current_option = 0
+    
+    running = True
+    while running:
+        screen.fill(BLACK)
+        
+        # Draw title
+        title_text = font.render("Settings", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
+        screen.blit(title_text, title_rect)
+        
+        # Draw options
+        for i, option in enumerate(settings_options):
+            color = LIGHT_BLUE if i == current_option else WHITE
+            option_text = font.render(option, True, color)
+            option_rect = option_text.get_rect(center=(WIDTH // 2, 180 + i * 60))
+            screen.blit(option_text, option_rect)
+            
+            if i == current_option:
+                rect = pygame.Rect(option_rect.left - 10, option_rect.top - 5,
+                                 option_rect.width + 20, option_rect.height + 10)
+                pygame.draw.rect(screen, color, rect, 2, border_radius=5)
+        
+        # Draw volume bars
+        # Music volume bar
+        music_bar_x = WIDTH // 2 - 100
+        music_bar_y = 180 + 30
+        music_bar_width = 200
+        music_bar_height = 10
+        
+        # Background bar
+        pygame.draw.rect(screen, LIGHT_GRAY, 
+                        (music_bar_x, music_bar_y, music_bar_width, music_bar_height))
+        # Filled bar
+        pygame.draw.rect(screen, BLUE, 
+                        (music_bar_x, music_bar_y, 
+                         int(music_bar_width * music_volume), music_bar_height))
+        # Border
+        pygame.draw.rect(screen, WHITE, 
+                        (music_bar_x, music_bar_y, music_bar_width, music_bar_height), 2)
+        
+        # Music volume text
+        volume_text = small_font.render(f"{int(music_volume * 100)}%", True, WHITE)
+        volume_rect = volume_text.get_rect(center=(WIDTH // 2 + 150, music_bar_y + music_bar_height // 2))
+        screen.blit(volume_text, volume_rect)
+        
+        # SFX volume bar
+        sfx_bar_x = WIDTH // 2 - 100
+        sfx_bar_y = 240 + 30
+        sfx_bar_width = 200
+        sfx_bar_height = 10
+        
+        # Background bar
+        pygame.draw.rect(screen, LIGHT_GRAY, 
+                        (sfx_bar_x, sfx_bar_y, sfx_bar_width, sfx_bar_height))
+        # Filled bar
+        pygame.draw.rect(screen, BLUE, 
+                        (sfx_bar_x, sfx_bar_y, 
+                         int(sfx_bar_width * sfx_volume), sfx_bar_height))
+        # Border
+        pygame.draw.rect(screen, WHITE, 
+                        (sfx_bar_x, sfx_bar_y, sfx_bar_width, sfx_bar_height), 2)
+        
+        # SFX volume text
+        sfx_volume_text = small_font.render(f"{int(sfx_volume * 100)}%", True, WHITE)
+        sfx_volume_rect = sfx_volume_text.get_rect(center=(WIDTH // 2 + 150, sfx_bar_y + sfx_bar_height // 2))
+        screen.blit(sfx_volume_text, sfx_volume_rect)
+        
+        # Help text
+        help_text = small_font.render("Up/Down: Navigate | Left/Right: Adjust | Fire: Select | Mode: Back", 
+                                    True, LIGHT_GRAY)
+        help_rect = help_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
+        screen.blit(help_text, help_rect)
+        
+        # Event handling
         for event in pygame.event.get():
-            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                waiting = False
-            elif event.type == pygame.QUIT:
+            if event.type == pygame.QUIT:
+                running = False
                 pygame.quit()
                 sys.exit()
-
-        # Check for GPIO button presses
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    current_option = (current_option - 1) % len(settings_options)
+                    sound_manager.play_sound("navigate_up")
+                elif event.key == pygame.K_DOWN:
+                    current_option = (current_option + 1) % len(settings_options)
+                    sound_manager.play_sound("navigate_down")
+                elif event.key == pygame.K_LEFT:
+                    if current_option == 0:  # Music volume
+                        music_volume = max(0, music_volume - 0.05)
+                        sound_manager.set_music_volume(music_volume)
+                    elif current_option == 1:  # SFX volume
+                        sfx_volume = max(0, sfx_volume - 0.05)
+                        sound_manager.set_volume(sfx_volume)
+                        sound_manager.play_sound("navigate_down")  # Test the volume
+                elif event.key == pygame.K_RIGHT:
+                    if current_option == 0:  # Music volume
+                        music_volume = min(1.0, music_volume + 0.05)
+                        sound_manager.set_music_volume(music_volume)
+                    elif current_option == 1:  # SFX volume
+                        sfx_volume = min(1.0, sfx_volume + 0.05)
+                        sound_manager.set_volume(sfx_volume)
+                        sound_manager.play_sound("navigate_up")  # Test the volume
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    if current_option == 2:  # Back to menu
+                        sound_manager.play_sound("back")
+                        running = False
+                elif event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    sound_manager.play_sound("back")
+                    running = False
+        
+        # GPIO button handling
         button_states = gpio_handler.get_button_states()
-        if any(button_states.values()):
-            waiting = False
-
-        # Small delay to prevent CPU hogging
-        time.sleep(0.01)
+        
+        if button_states['up']:
+            current_option = (current_option - 1) % len(settings_options)
+            sound_manager.play_sound("navigate_up")
+            
+        if button_states['down']:
+            current_option = (current_option + 1) % len(settings_options)
+            sound_manager.play_sound("navigate_down")
+            
+        if button_states['left']:
+            if current_option == 0:  # Music volume
+                music_volume = max(0, music_volume - 0.05)
+                sound_manager.set_music_volume(music_volume)
+            elif current_option == 1:  # SFX volume
+                sfx_volume = max(0, sfx_volume - 0.05)
+                sound_manager.set_volume(sfx_volume)
+                sound_manager.play_sound("navigate_down")  # Test the volume
+                
+        if button_states['right']:
+            if current_option == 0:  # Music volume
+                music_volume = min(1.0, music_volume + 0.05)
+                sound_manager.set_music_volume(music_volume)
+            elif current_option == 1:  # SFX volume
+                sfx_volume = min(1.0, sfx_volume + 0.05)
+                sound_manager.set_volume(sfx_volume)
+                sound_manager.play_sound("navigate_up")  # Test the volume
+                
+        if button_states['fire']:
+            if current_option == 2:  # Back to menu
+                sound_manager.play_sound("back")
+                running = False
+                
+        if button_states['mode']:
+            sound_manager.play_sound("back")
+            running = False
+        
+        pygame.display.flip()
+        clock.tick(30)
 
 def process_shot(x, y, shooter_board, target_board, shots_set):
     """Process a shot from one player to another's board"""
@@ -319,6 +456,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         if ai_mode and difficulty:
             game_mode_text += f" ({difficulty})"
         pao_mode = ai_mode and difficulty == "Pao"
+        if pao_mode:
+            sound_manager.start_pao_mode()
 
         current_player = 1
         cursor_x, cursor_y = 0, 0
@@ -401,6 +540,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 screen.blit(player_text, (20, 20))
 
             if winner:
+                
                 if winner == 1:
                     winner_text = font.render("Player 1 Wins!", True, (255, 215, 0))
                 elif ai_mode:
@@ -426,6 +566,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
             if not turn_in_progress:
                 for event in pygame.event.get():
+                       # Handle music end event
+                    sound_manager.handle_music_end_event(event)
+
                     if event.type == pygame.QUIT:
                         running = False
                         pygame.quit()
@@ -462,6 +605,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             player1_view[cursor_y][cursor_x] = CellState.MISS.value
 
                                             if pao_mode:
+                                                sound_manager.start_pao_mode()
                                                 screen.fill(BLACK)
                                                 draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
                                                 draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
@@ -890,6 +1034,8 @@ def game_mode_select():
         screen.blit(help_text, (WIDTH // 2 - 190, HEIGHT - 40))
 
         for event in pygame.event.get():
+               # Handle music end event
+            sound_manager.handle_music_end_event(event)
             if event.type == pygame.QUIT:
                 running = False
                 pygame.quit()
@@ -967,7 +1113,7 @@ def game_mode_select():
 
         pygame.display.flip()
         clock.tick(30)
-        
+
 def main_menu():
     button_width = 200
     button_height = 50
@@ -996,6 +1142,9 @@ def main_menu():
         screen.blit(title_text, title_rect)
 
         for event in pygame.event.get():
+            # Handle music end event
+            sound_manager.handle_music_end_event(event)
+            
             if event.type == pygame.QUIT:
                 running = False
                 quit_game()
