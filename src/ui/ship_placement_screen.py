@@ -65,7 +65,8 @@ class ShipPlacementScreen:
         
         # Placement state
         self.placement_complete = False
-        self.placement_valid = True
+        # Check initial placement validity right away
+        self.placement_valid = True  # Start with True
         
         # Confirmation dialog state
         self.showing_confirmation = False
@@ -81,6 +82,23 @@ class ShipPlacementScreen:
             'mode': False,
             'rotate': False  # New button for rotation
         }
+    
+    def check_placement_validity(self):
+        """Check if the current ship can be placed at the current position"""
+        if self.current_ship_index >= len(self.ship_types):
+            return True
+            
+        board = self.player1_board if self.current_player == 1 else self.player2_board
+        ship_name, ship_length = self.ship_types[self.current_ship_index]
+        
+        self.placement_valid = self.can_place_ship(
+            board, 
+            self.cursor_x, 
+            self.cursor_y, 
+            ship_length, 
+            self.current_ship_horizontal
+        )
+        return self.placement_valid
     
     def can_place_ship(self, board, x, y, length, horizontal):
         """Check if a ship can be placed at the given position"""
@@ -125,6 +143,9 @@ class ShipPlacementScreen:
             self.cursor_x = 0
             self.cursor_y = 0
             
+            # Check validity for next ship immediately
+            self.check_placement_validity()
+            
             # Check if all ships have been placed
             if self.current_ship_index >= len(self.ship_types):
                 if self.ai_mode or self.current_player == 2:
@@ -138,6 +159,8 @@ class ShipPlacementScreen:
                     self.current_player = 2
                     self.current_ship_index = 0
                     self.current_ship_horizontal = True
+                    # Check validity for the first ship of player 2
+                    self.check_placement_validity()
         
         return success
     
@@ -176,6 +199,9 @@ class ShipPlacementScreen:
         self.current_ship_horizontal = True
         self.cursor_x = 0
         self.cursor_y = 0
+        
+        # Check validity for the first ship after reset
+        self.check_placement_validity()
     
     def get_button_states(self):
         """Get button states with edge detection"""
@@ -258,13 +284,7 @@ class ShipPlacementScreen:
                 
             # Check if the current placement is valid after movement
             if moved:
-                self.placement_valid = self.can_place_ship(
-                    board, 
-                    self.cursor_x, 
-                    self.cursor_y, 
-                    ship_length, 
-                    self.current_ship_horizontal
-                )
+                self.check_placement_validity()
                 self.move_delay = current_time + 150
                 
             # Fire button pressed (place ship)
@@ -344,20 +364,20 @@ class ShipPlacementScreen:
             pygame.draw.rect(self.screen, preview_color, (cell_x, cell_y, self.cell_size - 2, self.cell_size - 2))
             
         # Draw cursor highlight around the ship's starting position
-            cursor_width = self.cell_size + 2
-            cursor_height = self.cell_size + 2
+        cursor_width = self.cell_size + 2
+        cursor_height = self.cell_size + 2
 
-            if self.current_ship_horizontal:
-                cursor_width = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
-            else:
-                cursor_height = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
-    
-            cursor_rect = pygame.Rect(
+        if self.current_ship_horizontal:
+            cursor_width = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
+        else:
+            cursor_height = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
+
+        cursor_rect = pygame.Rect(
             offset_x + self.cursor_y * self.cell_size - 2,
             offset_y + self.cursor_x * self.cell_size - 2,
             cursor_width,
             cursor_height
-)
+        )
         pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR, cursor_rect, 2)
     
     def draw_ship_list(self, x, y):
@@ -549,6 +569,9 @@ class ShipPlacementScreen:
         else:
             # Show player 1 setup screen
             self.show_player_setup_screen(1)
+        
+        # Check validity of initial position (0,0) with first ship
+        self.check_placement_validity()
         
         running = True
         while running and not self.placement_complete:
