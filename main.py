@@ -1044,14 +1044,20 @@ gpio_handler = GPIOHandler()
 
 def main():
     try:
+        print("Starting main menu...")
         main_menu()
     except Exception as e:
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        gpio_handler.cleanup()
+        print("Cleaning up...")
+        if gpio_handler:
+            gpio_handler.cleanup()
+        if sound_manager:
+            sound_manager.stop_background_music()
         pygame.quit()
+        sys.exit()
 
 if __name__ == "__main__":
     main()
