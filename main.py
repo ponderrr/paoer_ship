@@ -1045,6 +1045,121 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
         )
         pygame.draw.rect(screen, (255, 255, 0), cursor_rect, 2)
 
+
+def main_menu():
+    button_width = 200
+    button_height = 50
+    center_x = (WIDTH - button_width) // 2
+    start_y = 200
+    spacing = 70
+
+    buttons = [
+        Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
+        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
+        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
+    ]
+
+    current_selection = 0
+    buttons[current_selection].selected = True
+    clock = pygame.time.Clock()
+    running = True
+
+    # Use the existing global sound_manager instance
+    global sound_manager
+
+    while running:
+        screen.fill(BLACK)
+        title_text = title_font.render("Pao'er Ship", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
+        screen.blit(title_text, title_rect)
+
+        for event in pygame.event.get():
+            # Handle music end event
+            sound_manager.handle_music_end_event(event)
+            
+            if event.type == pygame.QUIT:
+                # Only quit the program if we're actually supposed to
+                running = False
+                quit_game()
+                return  # Exit function after quitting
+            elif event.type == pygame.MOUSEMOTION:
+                for button in buttons:
+                    button.check_hover(event.pos)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for button in buttons:
+                    if button.rect.collidepoint(event.pos):
+                        sound_manager.play_sound("accept")
+                        button.check_click(event.pos)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    for button in buttons:
+                        button.selected = False
+                    current_selection = (current_selection - 1) % len(buttons)
+                    buttons[current_selection].selected = True
+                    sound_manager.play_sound("navigate_up")
+                elif event.key == pygame.K_DOWN:
+                    for button in buttons:
+                        button.selected = False
+                    current_selection = (current_selection + 1) % len(buttons)
+                    buttons[current_selection].selected = True
+                    sound_manager.play_sound("navigate_down")
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    sound_manager.play_sound("accept")
+                    buttons[current_selection].action()
+                elif event.key == pygame.K_ESCAPE:
+                    # Only quit if the quit button is currently selected
+                    if current_selection == 2:  # Quit button index
+                        sound_manager.play_sound("back")
+                        running = False
+                        quit_game()
+                        return
+                    else:
+                        # Otherwise just make a sound
+                        sound_manager.play_sound("back")
+
+        # Only check GPIO if we have a valid handler
+        if gpio_handler:
+            button_states = gpio_handler.get_button_states()
+            if button_states['up']:
+                for button in buttons:
+                    button.selected = False
+                current_selection = (current_selection - 1) % len(buttons)
+                buttons[current_selection].selected = True
+                sound_manager.play_sound("navigate_up")
+
+            if button_states['down']:
+                for button in buttons:
+                    button.selected = False
+                current_selection = (current_selection + 1) % len(buttons)
+                buttons[current_selection].selected = True
+                sound_manager.play_sound("navigate_down")
+
+            if button_states['fire']:
+                sound_manager.play_sound("accept")
+                buttons[current_selection].action()
+                
+            if button_states['mode']:
+                # MODE button now does nothing in the main menu (just plays a sound)
+                # This matches the behavior of other games where you can't "go back"
+                # from the main menu
+                sound_manager.play_sound("back")
+                # Don't quit - just continue
+
+        for button in buttons:
+            button.update()
+            button.draw(screen)
+
+        help_font = pygame.font.Font(None, 24)
+        # Update help text to reflect the new behavior
+        help_text = help_font.render("Up/Down: Navigate | Fire: Select", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 100, HEIGHT - 40))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+gpio_handler = GPIOHandler()
+
+
 def game_mode_select():
     """Screen to select game mode (AI or Player) and AI difficulty"""
     clock = pygame.time.Clock()
@@ -1183,118 +1298,7 @@ def game_mode_select():
         pygame.display.flip()
         clock.tick(30)
 
-def main_menu():
-    button_width = 200
-    button_height = 50
-    center_x = (WIDTH - button_width) // 2
-    start_y = 200
-    spacing = 70
 
-    buttons = [
-        Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
-        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
-        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
-    ]
-
-    current_selection = 0
-    buttons[current_selection].selected = True
-    clock = pygame.time.Clock()
-    running = True
-
-    # Use the existing global sound_manager instance
-    global sound_manager
-
-    while running:
-        screen.fill(BLACK)
-        title_text = title_font.render("Pao'er Ship", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
-        screen.blit(title_text, title_rect)
-
-        for event in pygame.event.get():
-            # Handle music end event
-            sound_manager.handle_music_end_event(event)
-            
-            if event.type == pygame.QUIT:
-                # Only quit the program if we're actually supposed to
-                running = False
-                quit_game()
-                return  # Exit function after quitting
-            elif event.type == pygame.MOUSEMOTION:
-                for button in buttons:
-                    button.check_hover(event.pos)
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for button in buttons:
-                    if button.rect.collidepoint(event.pos):
-                        sound_manager.play_sound("accept")
-                        button.check_click(event.pos)
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    for button in buttons:
-                        button.selected = False
-                    current_selection = (current_selection - 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                    sound_manager.play_sound("navigate_up")
-                elif event.key == pygame.K_DOWN:
-                    for button in buttons:
-                        button.selected = False
-                    current_selection = (current_selection + 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                    sound_manager.play_sound("navigate_down")
-                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    sound_manager.play_sound("accept")
-                    buttons[current_selection].action()
-                elif event.key == pygame.K_ESCAPE:
-                    # Only quit if the quit button is currently selected
-                    if current_selection == 2:  # Quit button index
-                        sound_manager.play_sound("back")
-                        running = False
-                        quit_game()
-                        return
-                    else:
-                        # Otherwise just make a sound
-                        sound_manager.play_sound("back")
-
-        # Only check GPIO if we have a valid handler
-        if gpio_handler:
-            button_states = gpio_handler.get_button_states()
-            if button_states['up']:
-                for button in buttons:
-                    button.selected = False
-                current_selection = (current_selection - 1) % len(buttons)
-                buttons[current_selection].selected = True
-                sound_manager.play_sound("navigate_up")
-
-            if button_states['down']:
-                for button in buttons:
-                    button.selected = False
-                current_selection = (current_selection + 1) % len(buttons)
-                buttons[current_selection].selected = True
-                sound_manager.play_sound("navigate_down")
-
-            if button_states['fire']:
-                sound_manager.play_sound("accept")
-                buttons[current_selection].action()
-                
-            if button_states['mode']:
-                # MODE button now does nothing in the main menu (just plays a sound)
-                # This matches the behavior of other games where you can't "go back"
-                # from the main menu
-                sound_manager.play_sound("back")
-                # Don't quit - just continue
-
-        for button in buttons:
-            button.update()
-            button.draw(screen)
-
-        help_font = pygame.font.Font(None, 24)
-        # Update help text to reflect the new behavior
-        help_text = help_font.render("Up/Down: Navigate | Fire: Select", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 100, HEIGHT - 40))
-
-        pygame.display.flip()
-        clock.tick(30)
-
-gpio_handler = GPIOHandler()
 
 # Also update the main function to handle proper returns from main_menu
 def main():
