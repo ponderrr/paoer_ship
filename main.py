@@ -1172,6 +1172,7 @@ def main_menu():
             sound_manager.handle_music_end_event(event)
             
             if event.type == pygame.QUIT:
+                # Only quit the program if we're actually supposed to
                 running = False
                 quit_game()
             elif event.type == pygame.MOUSEMOTION:
@@ -1200,8 +1201,8 @@ def main_menu():
                     buttons[current_selection].action()
                 elif event.key == pygame.K_ESCAPE:
                     sound_manager.play_sound("back")
+                    # Don't exit the program here, just stop the menu loop
                     running = False
-                    quit_game()
 
         # Only check GPIO if we have a valid handler
         if gpio_handler:
@@ -1226,8 +1227,8 @@ def main_menu():
                 
             if button_states['mode']:
                 sound_manager.play_sound("back")
+                # Don't exit the program here either
                 running = False
-                quit_game()
 
         for button in buttons:
             button.update()
@@ -1240,12 +1241,15 @@ def main_menu():
         pygame.display.flip()
         clock.tick(30)
 
-gpio_handler = GPIOHandler()
-
+# Also fix the main function to handle different exit scenarios
 def main():
     try:
         print("Starting main menu...")
         main_menu()
+        # If main_menu exits normally (not through quit_game),
+        # just keep the program running or handle it gracefully
+    except KeyboardInterrupt:
+        print("Interrupted by user")
     except Exception as e:
         print(f"Error: {e}")
         import traceback
