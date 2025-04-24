@@ -132,7 +132,7 @@ class ShipPlacementScreen:
                 
         return True
     
-   def place_current_ship(self, board):
+def place_current_ship(self, board):
     """Place the current ship on the board"""
     ship_name, ship_length = self.ship_types[self.current_ship_index]
     
