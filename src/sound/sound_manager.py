@@ -1,8 +1,6 @@
 import pygame
 import os
 import random
-import threading
-import time
 
 class SoundManager:
     """
@@ -17,13 +15,7 @@ class SoundManager:
         """
         # Initialize Pygame mixer with specific settings
         try:
-            # Use different settings for Raspberry Pi
-            if os.uname().machine.startswith('aarch64') or 'arm' in os.uname().machine:
-                print("Detected Raspberry Pi, using specific audio settings")
-                pygame.mixer.pre_init(44100, -16, 2, 1024)  # Smaller buffer for Pi
-            else:
-                pygame.mixer.pre_init(44100, -16, 2, 2048)
-                
+            pygame.mixer.pre_init(44100, -16, 2, 2048)  # Set audio parameters
             pygame.mixer.init()
             print("Pygame mixer initialized successfully")
         except Exception as e:
@@ -47,10 +39,10 @@ class SoundManager:
         self.pao_mode = False
         self.pao_music_path = None
 
-        # Set up music end event - REMOVED due to potential issues on Pi
-        # Instead, use a separate thread to monitor music
-        self.monitor_thread = None
-        
+        # Set up music end event
+        self.MUSIC_END_EVENT = pygame.USEREVENT + 1
+        pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)
+
         # Try to load sounds
         try:
             # Game sounds
@@ -149,30 +141,25 @@ class SoundManager:
             for file in files:
                 if any(file.lower().endswith(ext) for ext in music_extensions):
                     full_path = os.path.join(self.background_music_dir, file)
-                    self.playlist.append(full_path)
-                    print(f"Added to playlist: {file}")
+                    
+                    # Skip special_music.mp3 when loading the normal playlist
+                    if 'special_music' not in file.lower():
+                        self.playlist.append(full_path)
+                        print(f"Added to playlist: {file}")
 
                     # Check for special Pao mode music
-                    if 'pao' in file.lower() or 'special' in file.lower():
+                    if 'special_music' in file.lower():
                         self.pao_music_path = full_path
                         print(f"Found special Pao mode music: {file}")
         else:
             print(f"Background music directory does not exist: {self.background_music_dir}")
 
-        # If no special Pao music was found but special_music.mp3 exists, use it
-        if not self.pao_music_path and self.playlist:
-            for track in self.playlist:
-                if 'special_music' in os.path.basename(track).lower():
-                    self.pao_music_path = track
-                    print(f"Using special_music.mp3 as Pao mode music")
-                    break
-        
-        # If still no Pao music, use the first track as fallback
+        # If no special Pao music was found but we have tracks, use the first track
         if not self.pao_music_path and self.playlist:
             self.pao_music_path = self.playlist[0]
-            print("Using first track as Pao mode music")
+            print("Using first track as Pao mode music fallback")
 
-        print(f"Total music files loaded: {len(self.playlist)}")
+        print(f"Total music files loaded to playlist: {len(self.playlist)}")
 
     def play_sound(self, sound_name):
         """
@@ -192,23 +179,6 @@ class SoundManager:
                 except:
                     pass
 
-    def _music_monitor_thread(self):
-        """
-        Monitor thread to check when music ends and play next track
-        """
-        while self.is_playing:
-            try:
-                # Check if music is playing
-                if not pygame.mixer.music.get_busy() and not self.pao_mode:
-                    time.sleep(0.5)  # Small delay to ensure track actually ended
-                    if not pygame.mixer.music.get_busy():  # Double check
-                        print("Music finished, playing next track")
-                        self.play_next_track()
-                time.sleep(0.1)  # Check every 100ms
-            except Exception as e:
-                print(f"Error in music monitor thread: {e}")
-                time.sleep(1)  # Wait longer if there's an error
-
     def start_background_music(self):
         """Start playing background music playlist"""
         if not self.playlist:
@@ -221,12 +191,6 @@ class SoundManager:
         # Reset to start of playlist
         self.current_track_index = 0
         self.play_next_track()
-        
-        # Start monitoring thread if not already running
-        if self.monitor_thread is None or not self.monitor_thread.is_alive():
-            self.monitor_thread = threading.Thread(target=self._music_monitor_thread, daemon=True)
-            self.monitor_thread.start()
-            print("Started music monitor thread")
 
     def toggle_shuffle(self):
         """Toggle shuffle mode for the playlist"""
@@ -256,7 +220,7 @@ class SoundManager:
 
     def play_next_track(self):
         """Play the next track in the playlist"""
-        if not self.playlist:
+        if not self.playlist and not self.pao_mode:
             print("No tracks in playlist to play")
             return
 
@@ -269,47 +233,71 @@ class SoundManager:
                     print(f"Playing Pao mode music: {os.path.basename(self.pao_music_path)}")
                 except Exception as e:
                     print(f"Error playing Pao music: {e}")
+                    # Try to reinitialize
+                    try:
+                        pygame.mixer.quit()
+                        pygame.mixer.init()
+                        pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)  # Re-set end event
+                        pygame.mixer.music.load(self.pao_music_path)
+                        pygame.mixer.music.play(-1)
+                        print("Reinitialized mixer and retried playing Pao music")
+                    except Exception as e2:
+                        print(f"Still failed after reinit: {e2}")
             return
 
         # Normal playlist playback
-        try:
-            current_track = self.playlist[self.current_track_index]
-            print(f"Attempting to play: {current_track}")
+        if self.playlist:  # Only play if there are tracks in the playlist
+            try:
+                current_track = self.playlist[self.current_track_index]
+                print(f"Attempting to play: {current_track}")
 
-            # Try to load and play the track
-            pygame.mixer.music.load(current_track)
-            pygame.mixer.music.play()  # Play once, monitor thread will handle next track
+                # Try to load and play the track
+                pygame.mixer.music.load(current_track)
+                pygame.mixer.music.play()  # Play once, the end event will trigger next track
 
-            # Check if music is actually playing
-            if pygame.mixer.music.get_busy():
-                print(f"Successfully playing: {os.path.basename(current_track)}")
-            else:
-                print(f"Music loaded but not playing: {os.path.basename(current_track)}")
+                # Check if music is actually playing
+                if pygame.mixer.music.get_busy():
+                    print(f"Successfully playing: {os.path.basename(current_track)}")
+                else:
+                    print(f"Music loaded but not playing: {os.path.basename(current_track)}")
+                    # Try alternative approach
+                    pygame.mixer.music.play(0)  # Explicitly play once
 
-            # Move to next track for next time
-            self.current_track_index = (self.current_track_index + 1) % len(self.playlist)
-            
-            # Handle playlist end and repeat mode
-            if self.current_track_index == 0 and not self.repeat_mode:
-                # If we've played through the whole playlist and repeat is off, stop
-                self.is_playing = False
-                print("Playlist ended, not repeating")
-                return
+                # Move to next track for next time
+                self.current_track_index = (self.current_track_index + 1) % len(self.playlist)
+                
+                # Handle playlist end and repeat mode
+                if self.current_track_index == 0 and not self.repeat_mode:
+                    # If we've played through the whole playlist and repeat is off, stop
+                    self.is_playing = False
+                    print("Playlist ended, not repeating")
+                    return
 
-        except Exception as e:
-            print(f"Error playing music: {e}")
-            print(f"Track that failed: {self.playlist[self.current_track_index]}")
+            except Exception as e:
+                print(f"Error playing music: {e}")
+                print(f"Track that failed: {self.playlist[self.current_track_index]}")
 
-            # Try next track if this one fails
-            self.current_track_index = (self.current_track_index + 1) % len(self.playlist)
-            if self.playlist and self.current_track_index != 0:  # Avoid infinite recursion
-                self.play_next_track()
+                # Try to reinitialize and play next track
+                try:
+                    pygame.mixer.quit()
+                    pygame.mixer.init()
+                    pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)  # Re-set end event
+                    print("Reinitialized mixer after music failure")
+                except:
+                    pass
+
+                # Try next track if this one fails
+                self.current_track_index = (self.current_track_index + 1) % len(self.playlist)
+                if self.playlist and self.current_track_index != 0:  # Avoid infinite recursion
+                    self.play_next_track()
 
     def handle_music_end_event(self, event):
         """
-        This method is kept for compatibility but isn't used anymore
+        Handle the music end event to play the next track
         """
-        pass
+        if event.type == self.MUSIC_END_EVENT and self.is_playing and not self.pao_mode:
+            print("Music ended, playing next track")
+            self.play_next_track()
 
     def stop_background_music(self):
         """Stop background music"""
