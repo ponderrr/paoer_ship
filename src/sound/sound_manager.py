@@ -133,6 +133,12 @@ class SoundManager:
         # Look for music files in the background music directory
         music_extensions = ['.mp3', '.ogg', '.wav']
 
+        # First, check for background.mp3 in the main sounds directory
+        background_file = os.path.join(self.sound_dir, "background.mp3")
+        if os.path.exists(background_file):
+            self.playlist.append(background_file)
+            print(f"Added main background music: {background_file}")
+
         # Add all music files from background music directory
         if os.path.exists(self.background_music_dir):
             files = os.listdir(self.background_music_dir)
