@@ -1241,6 +1241,7 @@ def main_menu():
         pygame.display.flip()
         clock.tick(30)
 
+gpio_handler = GPIOHandler()
 # Also fix the main function to handle different exit scenarios
 def main():
     try:
