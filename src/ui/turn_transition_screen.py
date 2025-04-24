@@ -65,88 +65,83 @@ class TurnTransitionScreen:
             
         return button_states
     
-    def show_turn_result(self, player, row, col, hit, ship_sunk=False, is_ai_mode=False, player_board=None):
-        """
-        Show the result of a player's turn
+def show_turn_result(self, player, row, col, hit, ship_sunk=False, is_ai_mode=False, player_board=None):
+    """
+    Show the result of a player's turn
+    
+    Args:
+        player (int): The player who just took their turn (1 or 2)
+        row (int): Row coordinate of the shot (0-9)
+        col (int): Column coordinate of the shot (0-9)
+        hit (bool): Whether the shot hit a ship
+        ship_sunk (bool): Whether a ship was sunk by this shot
+        is_ai_mode (bool): Whether playing against AI
+        player_board: Player's own board to display (for AI mode)
+    """
+    # Display the result for 4 seconds
+    start_time = time.time()
+    
+    while time.time() - start_time < 4:
+        # Fill background
+        self.screen.fill(self.BLACK)
         
-        Args:
-            player (int): The player who just took their turn (1 or 2)
-            row (int): Row coordinate of the shot (0-9)
-            col (int): Column coordinate of the shot (0-9)
-            hit (bool): Whether the shot hit a ship
-            ship_sunk (bool): Whether a ship was sunk by this shot
-            is_ai_mode (bool): Whether playing against AI
-            player_board: Player's own board to display (for AI mode)
-        """
-        # Display the result for 4 seconds
-        start_time = time.time()
+        # Draw title
+        player_name = f"Player {player}" if player == 1 or not is_ai_mode else "AI"
+        title = self.title_font.render(f"{player_name}'s Shot Result", True, self.WHITE)
+        title_rect = title.get_rect(center=(self.width // 2, self.height // 5))
+        self.screen.blit(title, title_rect)
         
-        while time.time() - start_time < 4:
-            # Fill background
-            self.screen.fill(self.BLACK)
-            
-            # Draw title
-            player_name = f"Player {player}" if player == 1 or not is_ai_mode else "AI"
-            title = self.title_font.render(f"{player_name}'s Shot Result", True, self.WHITE)
-            title_rect = title.get_rect(center=(self.width // 2, self.height // 5))
-            self.screen.blit(title, title_rect)
-            
-            # Draw shot coordinates (convert internal board coords to UI friendly display)
-            # Column is letter (A-J), Row is number (1-10)
-            shot_text = self.info_font.render(f"Shot at coordinate: {chr(65 + col)}{row + 1}", True, self.LIGHT_BLUE)
-            shot_rect = shot_text.get_rect(center=(self.width // 2, self.height // 3))
-            self.screen.blit(shot_text, shot_rect)
-            
-            # Draw result
-            if hit:
-                result_color = (255, 0, 0)  # Red for hit
-                result_text = "HIT!"
-                if ship_sunk:
-                    result_text = "HIT - SHIP SUNK!"
-            else:
-                result_color = (0, 0, 255)  # Blue for miss
-                result_text = "MISS!"
-            
-            result = self.title_font.render(result_text, True, result_color)
-            result_rect = result.get_rect(center=(self.width // 2, self.height // 2))
-            self.screen.blit(result, result_rect)
-            
-            # Draw player's board in AI mode if provided
-            if is_ai_mode and player_board is not None:
-                self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
-                board_title = self.info_font.render("Your Board", True, self.WHITE)
-                board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
-                self.screen.blit(board_title, board_title_rect)
-            
-            # Draw time remaining
-            time_left = 4 - (time.time() - start_time)
-            time_text = self.info_font.render(f"Continue in {time_left:.1f} seconds...", True, self.LIGHT_GRAY)
-            time_rect = time_text.get_rect(center=(self.width // 2, self.height - 30))
-            self.screen.blit(time_text, time_rect)
-            
-            # Draw skip prompt
-            skip_text = self.info_font.render("Press FIRE to continue", True, self.LIGHT_GRAY)
-            skip_rect = skip_text.get_rect(center=(self.width // 2, self.height - 60))
-            self.screen.blit(skip_text, skip_rect)
-            
-            # Update display
-            pygame.display.flip()
-            
-            # Process events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    exit()
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    return  # Skip waiting if space is pressed
-            
-            # Check GPIO buttons
-            button_states = self.get_button_states()
-            if button_states['fire']:
-                return  # Skip waiting if fire button is pressed
-            
-            # Short delay to prevent CPU hogging
-            pygame.time.delay(50)
+        # Draw shot coordinates (convert internal board coords to UI friendly display)
+        # Column is letter (A-J), Row is number (1-10)
+        shot_text = self.info_font.render(f"Shot at coordinate: {chr(65 + col)}{row + 1}", True, self.LIGHT_BLUE)
+        shot_rect = shot_text.get_rect(center=(self.width // 2, self.height // 3))
+        self.screen.blit(shot_text, shot_rect)
+        
+        # Draw result
+        if hit:
+            result_color = (255, 0, 0)  # Red for hit
+            result_text = "HIT!"
+            if ship_sunk:
+                result_text = "HIT - SHIP SUNK!"
+        else:
+            result_color = (0, 0, 255)  # Blue for miss
+            result_text = "MISS!"
+        
+        result = self.title_font.render(result_text, True, result_color)
+        result_rect = result.get_rect(center=(self.width // 2, self.height // 2))
+        self.screen.blit(result, result_rect)
+        
+        # Draw player's board in AI mode ONLY if human player, not AI
+        if is_ai_mode and player_board is not None and player == 1:  # Only show board for human player
+            self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
+            board_title = self.info_font.render("Your Board", True, self.WHITE)
+            board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
+            self.screen.blit(board_title, board_title_rect)
+        
+        # Draw time remaining (removed "Press FIRE to continue" text)
+        time_left = 4 - (time.time() - start_time)
+        time_text = self.info_font.render(f"Continue in {time_left:.1f} seconds...", True, self.LIGHT_GRAY)
+        time_rect = time_text.get_rect(center=(self.width // 2, self.height - 30))
+        self.screen.blit(time_text, time_rect)
+        
+        # Update display
+        pygame.display.flip()
+        
+        # Process events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                return  # Skip waiting if space is pressed
+        
+        # Check GPIO buttons
+        button_states = self.get_button_states()
+        if button_states['fire']:
+            return  # Skip waiting if fire button is pressed
+        
+        # Short delay to prevent CPU hogging
+        pygame.time.delay(50)
     
     def show_player_ready_screen(self, player, is_ai_mode=False, player_board=None):
         """

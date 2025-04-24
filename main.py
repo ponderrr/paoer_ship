@@ -158,12 +158,25 @@ class Button:
         self.current_color = self.base_color
         self.hovered = False
         self.selected = False
+        self.border_color = WHITE
+        self.border_width = 2
 
     def update(self):
         self.current_color = self.hover_color if (self.selected or self.hovered) else self.base_color
 
     def draw(self, screen):
+        # Draw the button background
         pygame.draw.rect(screen, self.current_color, self.rect, border_radius=5)
+        
+        # Draw the border - make it thicker and more visible when selected
+        if self.selected:
+            # Thicker border when selected for better visibility
+            pygame.draw.rect(screen, (255, 255, 0), self.rect, 3, border_radius=5)  # Yellow border when selected
+        else:
+            # Regular white border
+            pygame.draw.rect(screen, self.border_color, self.rect, 2, border_radius=5)
+        
+        # Draw the text
         text_surface = button_font.render(self.text, True, WHITE)
         text_rect = text_surface.get_rect(center=self.rect.center)
         screen.blit(text_surface, text_rect)
@@ -243,6 +256,7 @@ def process_shot(x, y, shooter_board, target_board, shots_set):
         sound_manager.play_sound("miss")
 
     return hit, ship_sunk
+
 
 def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_board=None):
     """
@@ -361,11 +375,12 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 shots = player2_shots
                 own_board = player2_own_view
 
+            # Center the opponent's board since we're not showing two boards
             draw_board(
                 screen,
                 font,
                 view_board,
-                150,
+                (WIDTH - 300) // 2,  # Center the board
                 80,
                 30,
                 cursor_x if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
@@ -374,18 +389,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 "Opponent's Board"
             )
 
-            draw_board(
-                screen,
-                font,
-                own_board,
-                400,
-                80,
-                25,
-                -1,
-                -1,
-                False,
-                "Your Board"
-            )
+            # REMOVED: The "Your Board" display that was here
 
             if not winner:
                 if current_player == 1:
@@ -418,6 +422,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     else:
                         status_text = small_font.render("Player 2: Press FIRE to shoot", True, WHITE)
                     screen.blit(status_text, (WIDTH // 2 - 100, HEIGHT - 40))
+
 
             if not turn_in_progress:
                 for event in pygame.event.get():
@@ -772,21 +777,30 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
 def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cursor_y, show_cursor, title=None):
     """Helper function to draw a game board"""
+    
+    # Calculate board dimensions for centering
+    board_width = 10 * cell_size
+    board_height = 10 * cell_size
+    
+    # Adjust offset if we want to center the board
     if title:
         title_text = font.render(title, True, WHITE)
-        title_rect = title_text.get_rect(center=(offset_x + (10 * cell_size) // 2, offset_y - 30))
+        title_rect = title_text.get_rect(center=(offset_x + board_width // 2, offset_y - 30))
         screen.blit(title_text, title_rect)
 
+    # Draw column labels (A-J)
     for i in range(10):
         letter = chr(65 + i)
         text = pygame.font.Font(None, 20).render(letter, True, WHITE)
         screen.blit(text, (offset_x + i * cell_size + cell_size // 3, offset_y - 20))
 
+    # Draw row labels (1-10)
     for i in range(10):
         number = str(i + 1)
         text = pygame.font.Font(None, 20).render(number, True, WHITE)
         screen.blit(text, (offset_x - 20, offset_y + i * cell_size + cell_size // 3))
 
+    # Draw the board cells
     for y in range(10):
         for x in range(10):
             cell_rect = pygame.Rect(
@@ -808,6 +822,7 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
             pygame.draw.rect(screen, color, cell_rect)
             pygame.draw.rect(screen, (100, 100, 100), cell_rect, 1)
 
+    # Draw cursor if needed
     if show_cursor and cursor_x >= 0 and cursor_y >= 0:
         cursor_rect = pygame.Rect(
             offset_x + cursor_x * cell_size - 2,
@@ -951,6 +966,9 @@ def main_menu():
     clock = pygame.time.Clock()
     running = True
 
+    # Use the existing global sound_manager instance
+    global sound_manager
+
     while running:
         screen.fill(BLACK)
         title_text = title_font.render("Pao'er Ship", True, WHITE)
@@ -965,21 +983,27 @@ def main_menu():
                     button.check_hover(event.pos)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 for button in buttons:
-                    button.check_click(event.pos)
+                    if button.rect.collidepoint(event.pos):
+                        sound_manager.play_sound("accept")
+                        button.check_click(event.pos)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
                     for button in buttons:
                         button.selected = False
                     current_selection = (current_selection - 1) % len(buttons)
                     buttons[current_selection].selected = True
+                    sound_manager.play_sound("navigate_up")  # Use up sound
                 elif event.key == pygame.K_DOWN:
                     for button in buttons:
                         button.selected = False
                     current_selection = (current_selection + 1) % len(buttons)
                     buttons[current_selection].selected = True
+                    sound_manager.play_sound("navigate_down")  # Use down sound
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    sound_manager.play_sound("accept")
                     buttons[current_selection].action()
                 elif event.key == pygame.K_ESCAPE:
+                    sound_manager.play_sound("back")
                     running = False
 
         button_states = gpio_handler.get_button_states()
@@ -988,15 +1012,22 @@ def main_menu():
                 button.selected = False
             current_selection = (current_selection - 1) % len(buttons)
             buttons[current_selection].selected = True
+            sound_manager.play_sound("navigate_up")  # Use up sound
 
         if button_states['down']:
             for button in buttons:
                 button.selected = False
             current_selection = (current_selection + 1) % len(buttons)
             buttons[current_selection].selected = True
+            sound_manager.play_sound("navigate_down")  # Use down sound
 
         if button_states['fire']:
+            sound_manager.play_sound("accept")
             buttons[current_selection].action()
+            
+        if button_states['mode']:
+            sound_manager.play_sound("back")
+            running = False
 
         for button in buttons:
             button.update()
