@@ -1245,11 +1245,15 @@ def main_menu():
                     sound_manager.play_sound("accept")
                     buttons[current_selection].action()
                 elif event.key == pygame.K_ESCAPE:
-                    sound_manager.play_sound("back")
-                    # Since we're already at the main menu, pressing escape should quit
-                    running = False
-                    quit_game()
-                    return
+                    # Only quit if the quit button is currently selected
+                    if current_selection == 2:  # Quit button index
+                        sound_manager.play_sound("back")
+                        running = False
+                        quit_game()
+                        return
+                    else:
+                        # Otherwise just make a sound
+                        sound_manager.play_sound("back")
 
         # Only check GPIO if we have a valid handler
         if gpio_handler:
@@ -1273,31 +1277,35 @@ def main_menu():
                 buttons[current_selection].action()
                 
             if button_states['mode']:
+                # MODE button now does nothing in the main menu (just plays a sound)
+                # This matches the behavior of other games where you can't "go back"
+                # from the main menu
                 sound_manager.play_sound("back")
-                # Since we're already at the main menu, pressing MODE should quit
-                running = False
-                quit_game()
-                return
+                # Don't quit - just continue
 
         for button in buttons:
             button.update()
             button.draw(screen)
 
         help_font = pygame.font.Font(None, 24)
-        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Quit", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 150, HEIGHT - 40))
+        # Update help text to reflect the new behavior
+        help_text = help_font.render("Up/Down: Navigate | Fire: Select", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 100, HEIGHT - 40))
 
         pygame.display.flip()
         clock.tick(30)
 
 gpio_handler = GPIOHandler()
 
+# Also update the main function to handle proper returns from main_menu
 def main():
     try:
         print("Starting main menu...")
-        main_menu()
-        # The program should only reach here if main_menu() exits without calling quit_game()
-        # This happens when we click the Quit button or press MODE/ESC in the main menu
+        # Keep showing the main menu until the user explicitly quits
+        while True:
+            main_menu()
+            # If main_menu() returns, it means quit was selected
+            break
     except KeyboardInterrupt:
         print("Interrupted by user")
     except Exception as e:
@@ -1307,17 +1315,10 @@ def main():
     finally:
         # This code will run when the program is truly meant to exit
         print("Thank you for playing Pao'er Ship!")
-
-
-# Also, let's modify the quit_game function to be more explicit
-def quit_game():
-    print("Exiting game...")
-    if gpio_handler:
-        gpio_handler.cleanup()
-    if sound_manager:
-        sound_manager.stop_background_music()
-    pygame.quit()
-    sys.exit()
+        if gpio_handler:
+            gpio_handler.cleanup()
+        pygame.quit()
+        sys.exit()
 
 if __name__ == "__main__":
     main()
