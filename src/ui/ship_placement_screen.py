@@ -1,5 +1,4 @@
 import pygame
-import numpy as np
 import random
 import time
 import sys
@@ -7,7 +6,7 @@ from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
 
 class ShipPlacementScreen:
-    def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium"):
+    def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium", sound_manager=None):
         """
         Initialize the ship placement screen
         
@@ -16,11 +15,13 @@ class ShipPlacementScreen:
             gpio_handler: GPIO interface for button inputs
             ai_mode: Whether playing against AI (True) or another player (False)
             difficulty: AI difficulty level if ai_mode is True
+            sound_manager: Sound manager for playing sound effects
         """
         self.screen = screen
         self.gpio_handler = gpio_handler
         self.ai_mode = ai_mode
         self.difficulty = difficulty
+        self.sound_manager = sound_manager
         
         # Screen dimensions
         self.width = screen.get_width()
@@ -83,43 +84,11 @@ class ShipPlacementScreen:
             'mode': False,
             'rotate': False  # New button for rotation
         }
-        
-        # Sound for invalid actions
-        self.invalid_sound = None
-        try:
-            # Try to create a simple beep sound
-            self.create_invalid_sound()
-        except Exception as e:
-            print(f"Warning: Could not create invalid sound: {e}")
-    
-    def create_invalid_sound(self):
-        """Create a simple beep sound for invalid actions"""
-        # Create a simple sine wave beep
-        frequency = 220  # Frequency in Hz (A3 note)
-        duration = 0.1   # Duration in seconds
-        sample_rate = 44100
-        
-        # Generate the samples
-        t = np.linspace(0, duration, int(sample_rate * duration), False)
-        note = np.sin(frequency * t * 2 * np.pi)
-        
-        # Ensure the sound is in the correct format
-        audio = note * (2**15 - 1) / np.max(np.abs(note))
-        audio = audio.astype(np.int16)
-        
-        # Create a stereo sound
-        stereo_audio = np.column_stack((audio, audio))
-        
-        # Create the sound object
-        self.invalid_sound = pygame.sndarray.make_sound(stereo_audio)
     
     def play_invalid_sound(self):
         """Play the invalid action sound"""
-        if self.invalid_sound:
-            try:
-                self.invalid_sound.play()
-            except Exception as e:
-                print(f"Error playing invalid sound: {e}")
+        if self.sound_manager:
+            self.sound_manager.play_sound("back")  # Use back sound for invalid actions
     
     def check_placement_validity(self):
         """Check if the current ship can be placed at the current position"""
@@ -298,24 +267,29 @@ class ShipPlacementScreen:
             
             # Up button pressed
             if button_states['up']:
-                if self.cursor_y > 0:
-                    self.cursor_y -= 1
+                if self.cursor_x > 0:  # Note: cursor_x is row, cursor_y is column
+                    self.cursor_x -= 1
                     moved = True
                 else:
                     hit_boundary = True
                     
             # Down button pressed
             if button_states['down']:
-                if self.cursor_y < 9:
-                    self.cursor_y += 1
+                # Check if moving down would make the ship go off board
+                max_row = 9
+                if not self.current_ship_horizontal and ship_length > 1:
+                    max_row = 10 - ship_length
+                
+                if self.cursor_x < max_row:
+                    self.cursor_x += 1
                     moved = True
                 else:
                     hit_boundary = True
                 
             # Left button pressed
             if button_states['left']:
-                if self.cursor_x > 0:
-                    self.cursor_x -= 1
+                if self.cursor_y > 0:
+                    self.cursor_y -= 1
                     moved = True
                 else:
                     hit_boundary = True
@@ -323,12 +297,12 @@ class ShipPlacementScreen:
             # Right button pressed
             if button_states['right']:
                 # Check if moving right would make the ship go off board
-                max_x = 9
+                max_col = 9
                 if self.current_ship_horizontal and ship_length > 1:
-                    max_x = 10 - ship_length
+                    max_col = 10 - ship_length
                 
-                if self.cursor_x < max_x:
-                    self.cursor_x += 1
+                if self.cursor_y < max_col:
+                    self.cursor_y += 1
                     moved = True
                 else:
                     hit_boundary = True
