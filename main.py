@@ -41,8 +41,7 @@ button_font = pygame.font.Font(None, 30)
 # Create a SoundManager instance
 sound_manager = SoundManager()
 sound_manager.start_background_music()
-sound_manager.set_music_volume(0.3)  # 30% for music
-sound_manager.set_volume(0.4)        # 40% for sound effects
+
 
 class GPIOHandler:
     def __init__(self):
@@ -1139,7 +1138,7 @@ def game_mode_select():
                     ai_mode = (current_option == 0)
                     difficulty = ai_difficulties[current_difficulty] if ai_mode else None
 
-                    placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty, sound_manager)
+                    placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
                     player1_board, player2_board = placement_screen.run()
                     game_screen(ai_mode, difficulty, player1_board, player2_board)
                     running = False
