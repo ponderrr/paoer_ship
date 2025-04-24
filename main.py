@@ -574,12 +574,13 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 shots = player2_shots
                 own_board = player2_own_view
 
-            # Center the opponent's board since we're not showing two boards
+            # Draw the opponent's board centered
+            board_center_x = WIDTH // 2 - 150  # Center the board
             draw_board(
                 screen,
                 font,
                 view_board,
-                (WIDTH - 300) // 2,  # Center the board
+                board_center_x,
                 80,
                 30,
                 cursor_x if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
@@ -587,8 +588,6 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 (current_player == 1 or (current_player == 2 and not ai_mode)),
                 "Opponent's Board"
             )
-
-            # REMOVED: The "Your Board" display that was here
 
             if not winner:
                 if current_player == 1:
@@ -666,8 +665,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             if pao_mode:
                                                 sound_manager.start_pao_mode()
                                                 screen.fill(BLACK)
-                                                draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
-                                                draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
+                                                draw_board(screen, font, player1_view, board_center_x, 80, 30, cursor_x, cursor_y, True, "Your Shot")
 
                                                 miss_text = small_font.render(f"You fired at {chr(65 + cursor_x)}{cursor_y + 1}: MISS!", True, (0, 0, 255))
                                                 screen.blit(miss_text, (WIDTH // 2 - 100, HEIGHT - 70))
@@ -871,8 +869,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     thinking_time = random.uniform(1.5, 2.0)
 
                 screen.fill(BLACK)
-                draw_board(screen, font, player2_view, 150, 80, 30, -1, -1, False, "AI's Shot")
-                draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
+                # Remove the player's board display during AI's turn
+                draw_board(screen, font, player2_view, board_center_x, 80, 30, -1, -1, False, "AI's Shot")
                 thinking_text = small_font.render("AI is thinking...", True, WHITE)
                 thinking_rect = thinking_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
                 screen.blit(thinking_text, thinking_rect)
@@ -927,8 +925,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         ai_opponent.process_shot_result(board_x, board_y, hit, ship_sunk)
 
                     screen.fill(BLACK)
-                    draw_board(screen, font, player2_view, 150, 80, 30, display_x, display_y, True, "AI's Shot")
-                    draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
+                    # Show only the AI's shot board, not the player's board
+                    draw_board(screen, font, player2_view, board_center_x, 80, 30, display_x, display_y, True, "AI's Shot")
 
                     hit_text = "HIT!" if hit else "MISS"
                     ship_text = " Ship sunk!" if ship_sunk else ""
@@ -975,12 +973,6 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             clock.tick(30)
 
         return winner
-
-    except Exception as e:
-        print(f"Error in game_screen: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
 
     except Exception as e:
         print(f"Error in game_screen: {e}")
@@ -1300,15 +1292,23 @@ def game_mode_select():
 
 
 
-# Also update the main function to handle proper returns from main_menu
 def main():
     try:
-        print("Starting main menu...")
-        # Keep showing the main menu until the user explicitly quits
-        while True:
-            main_menu()
-            # If main_menu() returns, it means quit was selected
-            break
+        # Initialize required components
+        global gpio_handler, sound_manager
+        
+        # Set up GPIO handler (already done at module level)
+        if not gpio_handler:
+            gpio_handler = GPIOHandler()
+            
+        # Initialize sound manager if needed
+        if not hasattr(sound_manager, 'sounds') or sound_manager.sounds is None:
+            sound_manager = SoundManager()
+            sound_manager.start_background_music()
+        
+        # Start with main menu
+        main_menu()
+            
     except KeyboardInterrupt:
         print("Interrupted by user")
     except Exception as e:
@@ -1316,8 +1316,8 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
-        # This code will run when the program is truly meant to exit
-        print("Thank you for playing Pao'er Ship!")
+        # Clean up resources
+        print("Cleaning up resources...")
         if gpio_handler:
             gpio_handler.cleanup()
         pygame.quit()
@@ -1325,3 +1325,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
