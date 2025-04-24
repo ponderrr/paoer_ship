@@ -978,6 +978,7 @@ def main_menu():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                quit_game()
             elif event.type == pygame.MOUSEMOTION:
                 for button in buttons:
                     button.check_hover(event.pos)
@@ -992,42 +993,46 @@ def main_menu():
                         button.selected = False
                     current_selection = (current_selection - 1) % len(buttons)
                     buttons[current_selection].selected = True
-                    sound_manager.play_sound("navigate_up")  # Use up sound
+                    sound_manager.play_sound("navigate_up")
                 elif event.key == pygame.K_DOWN:
                     for button in buttons:
                         button.selected = False
                     current_selection = (current_selection + 1) % len(buttons)
                     buttons[current_selection].selected = True
-                    sound_manager.play_sound("navigate_down")  # Use down sound
+                    sound_manager.play_sound("navigate_down")
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     sound_manager.play_sound("accept")
                     buttons[current_selection].action()
                 elif event.key == pygame.K_ESCAPE:
                     sound_manager.play_sound("back")
                     running = False
+                    quit_game()
 
-        button_states = gpio_handler.get_button_states()
-        if button_states['up']:
-            for button in buttons:
-                button.selected = False
-            current_selection = (current_selection - 1) % len(buttons)
-            buttons[current_selection].selected = True
-            sound_manager.play_sound("navigate_up")  # Use up sound
+        # Only check GPIO if we have a valid handler
+        if gpio_handler:
+            button_states = gpio_handler.get_button_states()
+            if button_states['up']:
+                for button in buttons:
+                    button.selected = False
+                current_selection = (current_selection - 1) % len(buttons)
+                buttons[current_selection].selected = True
+                sound_manager.play_sound("navigate_up")
 
-        if button_states['down']:
-            for button in buttons:
-                button.selected = False
-            current_selection = (current_selection + 1) % len(buttons)
-            buttons[current_selection].selected = True
-            sound_manager.play_sound("navigate_down")  # Use down sound
+            if button_states['down']:
+                for button in buttons:
+                    button.selected = False
+                current_selection = (current_selection + 1) % len(buttons)
+                buttons[current_selection].selected = True
+                sound_manager.play_sound("navigate_down")
 
-        if button_states['fire']:
-            sound_manager.play_sound("accept")
-            buttons[current_selection].action()
-            
-        if button_states['mode']:
-            sound_manager.play_sound("back")
-            running = False
+            if button_states['fire']:
+                sound_manager.play_sound("accept")
+                buttons[current_selection].action()
+                
+            if button_states['mode']:
+                sound_manager.play_sound("back")
+                running = False
+                quit_game()
 
         for button in buttons:
             button.update()
