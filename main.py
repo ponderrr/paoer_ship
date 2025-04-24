@@ -30,6 +30,8 @@ BLACK = (0, 0, 0)
 BLUE = (50, 150, 255)
 LIGHT_BLUE = (80, 170, 255)
 LIGHT_GRAY = (180, 180, 180)
+# New color for warning
+RED = (255, 0, 0)
 
 # Load fonts
 pygame.font.init()
@@ -41,7 +43,6 @@ sound_manager = SoundManager()
 sound_manager.start_background_music()
 sound_manager.set_music_volume(0.3)  # 30% for music
 sound_manager.set_volume(0.4)        # 40% for sound effects
-
 
 class GPIOHandler:
     def __init__(self):
@@ -497,6 +498,11 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
         player1_own_view = player1_board.get_display_state()
         player2_own_view = player2_board.get_display_state()
+        
+        # Timer variables for player vs player mode
+        turn_timer = 30.0  # 30 seconds per turn
+        timer_start = pygame.time.get_ticks() / 1000.0  # Convert to seconds
+        timer_warning_threshold = 10.0  # Change to red at 10 seconds
 
         if not ai_mode:
             transition_screen.show_player_ready_screen(current_player)
@@ -521,6 +527,35 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
             exit_text = small_font.render("Press MODE to exit", True, LIGHT_GRAY)
             screen.blit(exit_text, (20, HEIGHT - 30))
+            
+            # Timer display for player vs player mode
+            if not ai_mode and not winner and not showing_exit_dialog:
+                elapsed_time = pygame.time.get_ticks() / 1000.0 - timer_start
+                remaining_time = max(0, turn_timer - elapsed_time)
+                
+                # Change color to red when running low
+                timer_color = RED if remaining_time < timer_warning_threshold else WHITE
+                
+                # Format time display
+                timer_text = font.render(f"Time: {remaining_time:.1f}", True, timer_color)
+                timer_rect = timer_text.get_rect(center=(WIDTH // 2, 25))
+                screen.blit(timer_text, timer_rect)
+                
+                # Auto-switch players when time runs out
+                if remaining_time <= 0 and not turn_in_progress:
+                    # Play a sound when time runs out
+                    sound_manager.play_sound("navigate_down")  # Use an existing sound
+                    
+                    # Switch to the next player
+                    if current_player == 1:
+                        transition_screen.show_player_ready_screen(2)
+                        current_player = 2
+                    else:
+                        transition_screen.show_player_ready_screen(1)
+                        current_player = 1
+                    
+                    # Reset timer
+                    timer_start = pygame.time.get_ticks() / 1000.0
 
             if showing_exit_dialog:
                 if exit_dialog.show():
@@ -566,7 +601,6 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 screen.blit(player_text, (20, 20))
 
             if winner:
-                
                 if winner == 1:
                     winner_text = font.render("Player 1 Wins!", True, (255, 215, 0))
                 elif ai_mode:
@@ -592,7 +626,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
             if not turn_in_progress:
                 for event in pygame.event.get():
-                       # Handle music end event
+                    # Handle music end event
                     sound_manager.handle_music_end_event(event)
 
                     if event.type == pygame.QUIT:
@@ -679,6 +713,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                                     player1_own_view
                                                 )
                                             current_player = 2
+                                            timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                             turn_in_progress = False
 
                                 elif current_player == 2 and not ai_mode:
@@ -703,6 +738,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
                                             transition_screen.show_player_ready_screen(1)
                                             current_player = 1
+                                            timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                             turn_in_progress = False
                                     else:
                                         turn_in_progress = False
@@ -790,6 +826,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             player1_own_view
                                         )
                                     current_player = 2
+                                    timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                     turn_in_progress = False
                             else:
                                 turn_in_progress = False
@@ -816,6 +853,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
                                     transition_screen.show_player_ready_screen(1)
                                     current_player = 1
+                                    timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                     turn_in_progress = False
                             else:
                                 turn_in_progress = False
@@ -938,6 +976,12 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             clock.tick(30)
 
         return winner
+
+    except Exception as e:
+        print(f"Error in game_screen: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
     except Exception as e:
         print(f"Error in game_screen: {e}")
