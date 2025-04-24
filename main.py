@@ -30,6 +30,8 @@ BLACK = (0, 0, 0)
 BLUE = (50, 150, 255)
 LIGHT_BLUE = (80, 170, 255)
 LIGHT_GRAY = (180, 180, 180)
+# New color for warning
+RED = (255, 0, 0)
 
 # Load fonts
 pygame.font.init()
@@ -38,8 +40,8 @@ button_font = pygame.font.Font(None, 30)
 
 # Create a SoundManager instance
 sound_manager = SoundManager()
-# Optionally start the background music
 sound_manager.start_background_music()
+
 
 class GPIOHandler:
     def __init__(self):
@@ -158,12 +160,25 @@ class Button:
         self.current_color = self.base_color
         self.hovered = False
         self.selected = False
+        self.border_color = WHITE
+        self.border_width = 2
 
     def update(self):
         self.current_color = self.hover_color if (self.selected or self.hovered) else self.base_color
 
     def draw(self, screen):
+        # Draw the button background
         pygame.draw.rect(screen, self.current_color, self.rect, border_radius=5)
+        
+        # Draw the border - make it thicker and more visible when selected
+        if self.selected:
+            # Thicker border when selected for better visibility
+            pygame.draw.rect(screen, (255, 255, 0), self.rect, 3, border_radius=5)  # Yellow border when selected
+        else:
+            # Regular white border
+            pygame.draw.rect(screen, self.border_color, self.rect, 2, border_radius=5)
+        
+        # Draw the text
         text_surface = button_font.render(self.text, True, WHITE)
         text_rect = text_surface.get_rect(center=self.rect.center)
         screen.blit(text_surface, text_rect)
@@ -182,33 +197,194 @@ def quit_game():
     sys.exit()
 
 def settings_screen():
-    """Simplified settings screen"""
-    screen.fill(BLACK)
+    """Settings screen with volume controls, shuffle and repeat options"""
+    clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
-    text = font.render("Settings Screen (Placeholder)", True, WHITE)
-    screen.blit(text, (WIDTH//2 - 180, HEIGHT//2))
-
-    back_text = font.render("Press any key to return to menu", True, WHITE)
-    screen.blit(back_text, (WIDTH//2 - 180, HEIGHT//2 + 50))
-
-    pygame.display.flip()
-
-    waiting = True
-    while waiting:
+    small_font = pygame.font.Font(None, 24)
+    
+    # Get current volumes and states
+    music_volume = sound_manager.get_music_volume()
+    sfx_volume = sound_manager.get_sfx_volume()
+    shuffle_state = sound_manager.get_shuffle_state()
+    repeat_state = sound_manager.get_repeat_state()
+    
+    # Settings options
+    settings_options = ["Music Volume", "SFX Volume", "Shuffle", "Repeat", "Back to Menu"]
+    current_option = 0
+    
+    running = True
+    while running:
+        screen.fill(BLACK)
+        
+        # Draw title
+        title_text = font.render("Settings", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 80))
+        screen.blit(title_text, title_rect)
+        
+        # Draw options
+        for i, option in enumerate(settings_options):
+            color = LIGHT_BLUE if i == current_option else WHITE
+            option_text = font.render(option, True, color)
+            option_rect = option_text.get_rect(center=(WIDTH // 2, 180 + i * 60))
+            screen.blit(option_text, option_rect)
+            
+            if i == current_option:
+                rect = pygame.Rect(option_rect.left - 10, option_rect.top - 5,
+                                 option_rect.width + 20, option_rect.height + 10)
+                pygame.draw.rect(screen, color, rect, 2, border_radius=5)
+        
+        # Draw volume bars
+        # Music volume bar
+        music_bar_x = WIDTH // 2 - 100
+        music_bar_y = 180 + 30
+        music_bar_width = 200
+        music_bar_height = 10
+        
+        # Background bar
+        pygame.draw.rect(screen, LIGHT_GRAY, 
+                        (music_bar_x, music_bar_y, music_bar_width, music_bar_height))
+        # Filled bar
+        pygame.draw.rect(screen, BLUE, 
+                        (music_bar_x, music_bar_y, 
+                         int(music_bar_width * music_volume), music_bar_height))
+        # Border
+        pygame.draw.rect(screen, WHITE, 
+                        (music_bar_x, music_bar_y, music_bar_width, music_bar_height), 2)
+        
+        # Music volume text
+        volume_text = small_font.render(f"{int(music_volume * 100)}%", True, WHITE)
+        volume_rect = volume_text.get_rect(center=(WIDTH // 2 + 150, music_bar_y + music_bar_height // 2))
+        screen.blit(volume_text, volume_rect)
+        
+        # SFX volume bar
+        sfx_bar_x = WIDTH // 2 - 100
+        sfx_bar_y = 240 + 30
+        sfx_bar_width = 200
+        sfx_bar_height = 10
+        
+        # Background bar
+        pygame.draw.rect(screen, LIGHT_GRAY, 
+                        (sfx_bar_x, sfx_bar_y, sfx_bar_width, sfx_bar_height))
+        # Filled bar
+        pygame.draw.rect(screen, BLUE, 
+                        (sfx_bar_x, sfx_bar_y, 
+                         int(sfx_bar_width * sfx_volume), sfx_bar_height))
+        # Border
+        pygame.draw.rect(screen, WHITE, 
+                        (sfx_bar_x, sfx_bar_y, sfx_bar_width, sfx_bar_height), 2)
+        
+        # SFX volume text
+        sfx_volume_text = small_font.render(f"{int(sfx_volume * 100)}%", True, WHITE)
+        sfx_volume_rect = sfx_volume_text.get_rect(center=(WIDTH // 2 + 150, sfx_bar_y + sfx_bar_height // 2))
+        screen.blit(sfx_volume_text, sfx_volume_rect)
+        
+        # Shuffle option
+        shuffle_color = (0, 255, 0) if shuffle_state else (255, 0, 0)
+        shuffle_text = small_font.render(f"{'ON' if shuffle_state else 'OFF'}", True, shuffle_color)
+        shuffle_rect = shuffle_text.get_rect(center=(WIDTH // 2 + 150, 300 + 10))
+        screen.blit(shuffle_text, shuffle_rect)
+        
+        # Repeat option
+        repeat_color = (0, 255, 0) if repeat_state else (255, 0, 0)
+        repeat_text = small_font.render(f"{'ON' if repeat_state else 'OFF'}", True, repeat_color)
+        repeat_rect = repeat_text.get_rect(center=(WIDTH // 2 + 150, 360 + 10))
+        screen.blit(repeat_text, repeat_rect)
+        
+        # Help text
+        help_text = small_font.render("Up/Down: Navigate | Left/Right: Adjust | Fire: Toggle/Select | Mode: Back", 
+                                    True, LIGHT_GRAY)
+        help_rect = help_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
+        screen.blit(help_text, help_rect)
+        
+        # Event handling
         for event in pygame.event.get():
-            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                waiting = False
-            elif event.type == pygame.QUIT:
+            if event.type == pygame.QUIT:
+                running = False
                 pygame.quit()
                 sys.exit()
-
-        # Check for GPIO button presses
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    current_option = (current_option - 1) % len(settings_options)
+                    sound_manager.play_sound("navigate_up")
+                elif event.key == pygame.K_DOWN:
+                    current_option = (current_option + 1) % len(settings_options)
+                    sound_manager.play_sound("navigate_down")
+                elif event.key == pygame.K_LEFT:
+                    if current_option == 0:  # Music volume
+                        music_volume = max(0, music_volume - 0.05)
+                        sound_manager.set_music_volume(music_volume)
+                    elif current_option == 1:  # SFX volume
+                        sfx_volume = max(0, sfx_volume - 0.05)
+                        sound_manager.set_volume(sfx_volume)
+                        sound_manager.play_sound("navigate_down")  # Test the volume
+                elif event.key == pygame.K_RIGHT:
+                    if current_option == 0:  # Music volume
+                        music_volume = min(1.0, music_volume + 0.05)
+                        sound_manager.set_music_volume(music_volume)
+                    elif current_option == 1:  # SFX volume
+                        sfx_volume = min(1.0, sfx_volume + 0.05)
+                        sound_manager.set_volume(sfx_volume)
+                        sound_manager.play_sound("navigate_up")  # Test the volume
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    if current_option == 2:  # Shuffle
+                        shuffle_state = sound_manager.toggle_shuffle()
+                        sound_manager.play_sound("accept")
+                    elif current_option == 3:  # Repeat
+                        repeat_state = sound_manager.toggle_repeat()
+                        sound_manager.play_sound("accept")
+                    elif current_option == 4:  # Back to menu
+                        sound_manager.play_sound("back")
+                        running = False
+                elif event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    sound_manager.play_sound("back")
+                    running = False
+        
+        # GPIO button handling
         button_states = gpio_handler.get_button_states()
-        if any(button_states.values()):
-            waiting = False
-
-        # Small delay to prevent CPU hogging
-        time.sleep(0.01)
+        
+        if button_states['up']:
+            current_option = (current_option - 1) % len(settings_options)
+            sound_manager.play_sound("navigate_up")
+            
+        if button_states['down']:
+            current_option = (current_option + 1) % len(settings_options)
+            sound_manager.play_sound("navigate_down")
+            
+        if button_states['left']:
+            if current_option == 0:  # Music volume
+                music_volume = max(0, music_volume - 0.05)
+                sound_manager.set_music_volume(music_volume)
+            elif current_option == 1:  # SFX volume
+                sfx_volume = max(0, sfx_volume - 0.05)
+                sound_manager.set_volume(sfx_volume)
+                sound_manager.play_sound("navigate_down")  # Test the volume
+                
+        if button_states['right']:
+            if current_option == 0:  # Music volume
+                music_volume = min(1.0, music_volume + 0.05)
+                sound_manager.set_music_volume(music_volume)
+            elif current_option == 1:  # SFX volume
+                sfx_volume = min(1.0, sfx_volume + 0.05)
+                sound_manager.set_volume(sfx_volume)
+                sound_manager.play_sound("navigate_up")  # Test the volume
+                
+        if button_states['fire']:
+            if current_option == 2:  # Shuffle
+                shuffle_state = sound_manager.toggle_shuffle()
+                sound_manager.play_sound("accept")
+            elif current_option == 3:  # Repeat
+                repeat_state = sound_manager.toggle_repeat()
+                sound_manager.play_sound("accept")
+            elif current_option == 4:  # Back to menu
+                sound_manager.play_sound("back")
+                running = False
+                
+        if button_states['mode']:
+            sound_manager.play_sound("back")
+            running = False
+        
+        pygame.display.flip()
+        clock.tick(30)
 
 def process_shot(x, y, shooter_board, target_board, shots_set):
     """Process a shot from one player to another's board"""
@@ -243,6 +419,7 @@ def process_shot(x, y, shooter_board, target_board, shots_set):
         sound_manager.play_sound("miss")
 
     return hit, ship_sunk
+
 
 def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_board=None):
     """
@@ -305,6 +482,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         if ai_mode and difficulty:
             game_mode_text += f" ({difficulty})"
         pao_mode = ai_mode and difficulty == "Pao"
+        if pao_mode:
+            sound_manager.start_pao_mode()
 
         current_player = 1
         cursor_x, cursor_y = 0, 0
@@ -318,6 +497,11 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
         player1_own_view = player1_board.get_display_state()
         player2_own_view = player2_board.get_display_state()
+        
+        # Timer variables for player vs player mode
+        turn_timer = 30.0  # 30 seconds per turn
+        timer_start = pygame.time.get_ticks() / 1000.0  # Convert to seconds
+        timer_warning_threshold = 10.0  # Change to red at 10 seconds
 
         if not ai_mode:
             transition_screen.show_player_ready_screen(current_player)
@@ -342,6 +526,35 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
             exit_text = small_font.render("Press MODE to exit", True, LIGHT_GRAY)
             screen.blit(exit_text, (20, HEIGHT - 30))
+            
+            # Timer display for player vs player mode
+            if not ai_mode and not winner and not showing_exit_dialog:
+                elapsed_time = pygame.time.get_ticks() / 1000.0 - timer_start
+                remaining_time = max(0, turn_timer - elapsed_time)
+                
+                # Change color to red when running low
+                timer_color = RED if remaining_time < timer_warning_threshold else WHITE
+                
+                # Format time display
+                timer_text = font.render(f"Time: {remaining_time:.1f}", True, timer_color)
+                timer_rect = timer_text.get_rect(center=(WIDTH // 2, 25))
+                screen.blit(timer_text, timer_rect)
+                
+                # Auto-switch players when time runs out
+                if remaining_time <= 0 and not turn_in_progress:
+                    # Play a sound when time runs out
+                    sound_manager.play_sound("navigate_down")  # Use an existing sound
+                    
+                    # Switch to the next player
+                    if current_player == 1:
+                        transition_screen.show_player_ready_screen(2)
+                        current_player = 2
+                    else:
+                        transition_screen.show_player_ready_screen(1)
+                        current_player = 1
+                    
+                    # Reset timer
+                    timer_start = pygame.time.get_ticks() / 1000.0
 
             if showing_exit_dialog:
                 if exit_dialog.show():
@@ -361,30 +574,19 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 shots = player2_shots
                 own_board = player2_own_view
 
+            # Draw the opponent's board centered
+            board_center_x = WIDTH // 2 - 150  # Center the board
             draw_board(
                 screen,
                 font,
                 view_board,
-                150,
+                board_center_x,
                 80,
                 30,
                 cursor_x if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
                 cursor_y if (current_player == 1 or (current_player == 2 and not ai_mode)) else -1,
                 (current_player == 1 or (current_player == 2 and not ai_mode)),
                 "Opponent's Board"
-            )
-
-            draw_board(
-                screen,
-                font,
-                own_board,
-                400,
-                80,
-                25,
-                -1,
-                -1,
-                False,
-                "Your Board"
             )
 
             if not winner:
@@ -419,8 +621,12 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         status_text = small_font.render("Player 2: Press FIRE to shoot", True, WHITE)
                     screen.blit(status_text, (WIDTH // 2 - 100, HEIGHT - 40))
 
+
             if not turn_in_progress:
                 for event in pygame.event.get():
+                    # Handle music end event
+                    sound_manager.handle_music_end_event(event)
+
                     if event.type == pygame.QUIT:
                         running = False
                         pygame.quit()
@@ -457,9 +663,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             player1_view[cursor_y][cursor_x] = CellState.MISS.value
 
                                             if pao_mode:
+                                                sound_manager.start_pao_mode()
                                                 screen.fill(BLACK)
-                                                draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
-                                                draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
+                                                draw_board(screen, font, player1_view, board_center_x, 80, 30, cursor_x, cursor_y, True, "Your Shot")
 
                                                 miss_text = small_font.render(f"You fired at {chr(65 + cursor_x)}{cursor_y + 1}: MISS!", True, (0, 0, 255))
                                                 screen.blit(miss_text, (WIDTH // 2 - 100, HEIGHT - 70))
@@ -504,6 +710,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                                     player1_own_view
                                                 )
                                             current_player = 2
+                                            timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                             turn_in_progress = False
 
                                 elif current_player == 2 and not ai_mode:
@@ -528,6 +735,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
                                             transition_screen.show_player_ready_screen(1)
                                             current_player = 1
+                                            timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                             turn_in_progress = False
                                     else:
                                         turn_in_progress = False
@@ -615,6 +823,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             player1_own_view
                                         )
                                     current_player = 2
+                                    timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                     turn_in_progress = False
                             else:
                                 turn_in_progress = False
@@ -641,6 +850,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                     transition_screen.show_turn_result(current_player, cursor_y, cursor_x, hit, ship_sunk)
                                     transition_screen.show_player_ready_screen(1)
                                     current_player = 1
+                                    timer_start = pygame.time.get_ticks() / 1000.0  # Reset timer
                                     turn_in_progress = False
                             else:
                                 turn_in_progress = False
@@ -659,8 +869,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     thinking_time = random.uniform(1.5, 2.0)
 
                 screen.fill(BLACK)
-                draw_board(screen, font, player2_view, 150, 80, 30, -1, -1, False, "AI's Shot")
-                draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
+                # Remove the player's board display during AI's turn
+                draw_board(screen, font, player2_view, board_center_x, 80, 30, -1, -1, False, "AI's Shot")
                 thinking_text = small_font.render("AI is thinking...", True, WHITE)
                 thinking_rect = thinking_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
                 screen.blit(thinking_text, thinking_rect)
@@ -715,8 +925,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                         ai_opponent.process_shot_result(board_x, board_y, hit, ship_sunk)
 
                     screen.fill(BLACK)
-                    draw_board(screen, font, player2_view, 150, 80, 30, display_x, display_y, True, "AI's Shot")
-                    draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
+                    # Show only the AI's shot board, not the player's board
+                    draw_board(screen, font, player2_view, board_center_x, 80, 30, display_x, display_y, True, "AI's Shot")
 
                     hit_text = "HIT!" if hit else "MISS"
                     ship_text = " Ship sunk!" if ship_sunk else ""
@@ -772,21 +982,30 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
 def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cursor_y, show_cursor, title=None):
     """Helper function to draw a game board"""
+    
+    # Calculate board dimensions for centering
+    board_width = 10 * cell_size
+    board_height = 10 * cell_size
+    
+    # Adjust offset if we want to center the board
     if title:
         title_text = font.render(title, True, WHITE)
-        title_rect = title_text.get_rect(center=(offset_x + (10 * cell_size) // 2, offset_y - 30))
+        title_rect = title_text.get_rect(center=(offset_x + board_width // 2, offset_y - 30))
         screen.blit(title_text, title_rect)
 
+    # Draw column labels (A-J)
     for i in range(10):
         letter = chr(65 + i)
         text = pygame.font.Font(None, 20).render(letter, True, WHITE)
         screen.blit(text, (offset_x + i * cell_size + cell_size // 3, offset_y - 20))
 
+    # Draw row labels (1-10)
     for i in range(10):
         number = str(i + 1)
         text = pygame.font.Font(None, 20).render(number, True, WHITE)
         screen.blit(text, (offset_x - 20, offset_y + i * cell_size + cell_size // 3))
 
+    # Draw the board cells
     for y in range(10):
         for x in range(10):
             cell_rect = pygame.Rect(
@@ -808,6 +1027,7 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
             pygame.draw.rect(screen, color, cell_rect)
             pygame.draw.rect(screen, (100, 100, 100), cell_rect, 1)
 
+    # Draw cursor if needed
     if show_cursor and cursor_x >= 0 and cursor_y >= 0:
         cursor_rect = pygame.Rect(
             offset_x + cursor_x * cell_size - 2,
@@ -816,6 +1036,121 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
             cell_size + 2
         )
         pygame.draw.rect(screen, (255, 255, 0), cursor_rect, 2)
+
+
+def main_menu():
+    button_width = 200
+    button_height = 50
+    center_x = (WIDTH - button_width) // 2
+    start_y = 200
+    spacing = 70
+
+    buttons = [
+        Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
+        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
+        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
+    ]
+
+    current_selection = 0
+    buttons[current_selection].selected = True
+    clock = pygame.time.Clock()
+    running = True
+
+    # Use the existing global sound_manager instance
+    global sound_manager
+
+    while running:
+        screen.fill(BLACK)
+        title_text = title_font.render("Pao'er Ship", True, WHITE)
+        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
+        screen.blit(title_text, title_rect)
+
+        for event in pygame.event.get():
+            # Handle music end event
+            sound_manager.handle_music_end_event(event)
+            
+            if event.type == pygame.QUIT:
+                # Only quit the program if we're actually supposed to
+                running = False
+                quit_game()
+                return  # Exit function after quitting
+            elif event.type == pygame.MOUSEMOTION:
+                for button in buttons:
+                    button.check_hover(event.pos)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for button in buttons:
+                    if button.rect.collidepoint(event.pos):
+                        sound_manager.play_sound("accept")
+                        button.check_click(event.pos)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    for button in buttons:
+                        button.selected = False
+                    current_selection = (current_selection - 1) % len(buttons)
+                    buttons[current_selection].selected = True
+                    sound_manager.play_sound("navigate_up")
+                elif event.key == pygame.K_DOWN:
+                    for button in buttons:
+                        button.selected = False
+                    current_selection = (current_selection + 1) % len(buttons)
+                    buttons[current_selection].selected = True
+                    sound_manager.play_sound("navigate_down")
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    sound_manager.play_sound("accept")
+                    buttons[current_selection].action()
+                elif event.key == pygame.K_ESCAPE:
+                    # Only quit if the quit button is currently selected
+                    if current_selection == 2:  # Quit button index
+                        sound_manager.play_sound("back")
+                        running = False
+                        quit_game()
+                        return
+                    else:
+                        # Otherwise just make a sound
+                        sound_manager.play_sound("back")
+
+        # Only check GPIO if we have a valid handler
+        if gpio_handler:
+            button_states = gpio_handler.get_button_states()
+            if button_states['up']:
+                for button in buttons:
+                    button.selected = False
+                current_selection = (current_selection - 1) % len(buttons)
+                buttons[current_selection].selected = True
+                sound_manager.play_sound("navigate_up")
+
+            if button_states['down']:
+                for button in buttons:
+                    button.selected = False
+                current_selection = (current_selection + 1) % len(buttons)
+                buttons[current_selection].selected = True
+                sound_manager.play_sound("navigate_down")
+
+            if button_states['fire']:
+                sound_manager.play_sound("accept")
+                buttons[current_selection].action()
+                
+            if button_states['mode']:
+                # MODE button now does nothing in the main menu (just plays a sound)
+                # This matches the behavior of other games where you can't "go back"
+                # from the main menu
+                sound_manager.play_sound("back")
+                # Don't quit - just continue
+
+        for button in buttons:
+            button.update()
+            button.draw(screen)
+
+        help_font = pygame.font.Font(None, 24)
+        # Update help text to reflect the new behavior
+        help_text = help_font.render("Up/Down: Navigate | Fire: Select", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 100, HEIGHT - 40))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+gpio_handler = GPIOHandler()
+
 
 def game_mode_select():
     """Screen to select game mode (AI or Player) and AI difficulty"""
@@ -875,26 +1210,38 @@ def game_mode_select():
         screen.blit(help_text, (WIDTH // 2 - 190, HEIGHT - 40))
 
         for event in pygame.event.get():
+               # Handle music end event
+            sound_manager.handle_music_end_event(event)
             if event.type == pygame.QUIT:
                 running = False
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    sound_manager.play_sound("back")  # Play back sound
                     running = False
                 elif event.key == pygame.K_UP:
                     if current_option == 0 and current_difficulty > 0:
                         current_difficulty -= 1
+                        sound_manager.play_sound("navigate_up")  # Play up sound
                     else:
+                        old_option = current_option
                         current_option = (current_option - 1) % len(options)
                         current_difficulty = 0
+                        if old_option != current_option:
+                            sound_manager.play_sound("navigate_up")  # Play up sound
                 elif event.key == pygame.K_DOWN:
                     if current_option == 0 and current_difficulty < len(ai_difficulties) - 1:
                         current_difficulty += 1
+                        sound_manager.play_sound("navigate_down")  # Play down sound
                     else:
+                        old_option = current_option
                         current_option = (current_option + 1) % len(options)
                         current_difficulty = 0
+                        if old_option != current_option:
+                            sound_manager.play_sound("navigate_down")  # Play down sound
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    sound_manager.play_sound("accept")  # Play accept sound
                     ai_mode = (current_option == 0)
                     difficulty = ai_difficulties[current_difficulty] if ai_mode else None
 
@@ -908,18 +1255,27 @@ def game_mode_select():
         if button_states['up']:
             if current_option == 0 and current_difficulty > 0:
                 current_difficulty -= 1
+                sound_manager.play_sound("navigate_up")  # Play up sound
             else:
+                old_option = current_option
                 current_option = (current_option - 1) % len(options)
                 current_difficulty = 0
+                if old_option != current_option:
+                    sound_manager.play_sound("navigate_up")  # Play up sound
 
         if button_states['down']:
             if current_option == 0 and current_difficulty < len(ai_difficulties) - 1:
                 current_difficulty += 1
+                sound_manager.play_sound("navigate_down")  # Play down sound
             else:
+                old_option = current_option
                 current_option = (current_option + 1) % len(options)
                 current_difficulty = 0
+                if old_option != current_option:
+                    sound_manager.play_sound("navigate_down")  # Play down sound
 
         if button_states['fire']:
+            sound_manager.play_sound("accept")  # Play accept sound
             ai_mode = (current_option == 0)
             difficulty = ai_difficulties[current_difficulty] if ai_mode else None
             placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
@@ -928,99 +1284,45 @@ def game_mode_select():
             running = False
 
         if button_states['mode']:
+            sound_manager.play_sound("back")  # Play back sound
             running = False
 
         pygame.display.flip()
         clock.tick(30)
 
-def main_menu():
-    button_width = 200
-    button_height = 50
-    center_x = (WIDTH - button_width) // 2
-    start_y = 200
-    spacing = 70
 
-    buttons = [
-        Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
-        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
-        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
-    ]
-
-    current_selection = 0
-    buttons[current_selection].selected = True
-    clock = pygame.time.Clock()
-    running = True
-
-    while running:
-        screen.fill(BLACK)
-        title_text = title_font.render("Pao'er Ship", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
-        screen.blit(title_text, title_rect)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.MOUSEMOTION:
-                for button in buttons:
-                    button.check_hover(event.pos)
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for button in buttons:
-                    button.check_click(event.pos)
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    for button in buttons:
-                        button.selected = False
-                    current_selection = (current_selection - 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                elif event.key == pygame.K_DOWN:
-                    for button in buttons:
-                        button.selected = False
-                    current_selection = (current_selection + 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    buttons[current_selection].action()
-                elif event.key == pygame.K_ESCAPE:
-                    running = False
-
-        button_states = gpio_handler.get_button_states()
-        if button_states['up']:
-            for button in buttons:
-                button.selected = False
-            current_selection = (current_selection - 1) % len(buttons)
-            buttons[current_selection].selected = True
-
-        if button_states['down']:
-            for button in buttons:
-                button.selected = False
-            current_selection = (current_selection + 1) % len(buttons)
-            buttons[current_selection].selected = True
-
-        if button_states['fire']:
-            buttons[current_selection].action()
-
-        for button in buttons:
-            button.update()
-            button.draw(screen)
-
-        help_font = pygame.font.Font(None, 24)
-        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 150, HEIGHT - 40))
-
-        pygame.display.flip()
-        clock.tick(30)
-
-gpio_handler = GPIOHandler()
 
 def main():
     try:
+        # Initialize required components
+        global gpio_handler, sound_manager
+        
+        # Set up GPIO handler (already done at module level)
+        if not gpio_handler:
+            gpio_handler = GPIOHandler()
+            
+        # Initialize sound manager if needed
+        if not hasattr(sound_manager, 'sounds') or sound_manager.sounds is None:
+            sound_manager = SoundManager()
+            sound_manager.start_background_music()
+        
+        # Start with main menu
         main_menu()
+            
+    except KeyboardInterrupt:
+        print("Interrupted by user")
     except Exception as e:
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        gpio_handler.cleanup()
+        # Clean up resources
+        print("Cleaning up resources...")
+        if gpio_handler:
+            gpio_handler.cleanup()
         pygame.quit()
+        sys.exit()
 
 if __name__ == "__main__":
     main()
+
