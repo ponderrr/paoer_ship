@@ -42,6 +42,9 @@ class SoundManager:
         # Set up music end event
         self.MUSIC_END_EVENT = pygame.USEREVENT + 1
         pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)
+        
+        # Make sure music is properly initialized
+        print(f"Music end event set to: {self.MUSIC_END_EVENT}")
 
         # Try to load sounds
         try:
@@ -133,12 +136,6 @@ class SoundManager:
         # Look for music files in the background music directory
         music_extensions = ['.mp3', '.ogg', '.wav']
 
-        # First, check for background.mp3 in the main sounds directory
-        background_file = os.path.join(self.sound_dir, "background.mp3")
-        if os.path.exists(background_file):
-            self.playlist.append(background_file)
-            print(f"Added main background music: {background_file}")
-
         # Add all music files from background music directory
         if os.path.exists(self.background_music_dir):
             files = os.listdir(self.background_music_dir)
@@ -157,7 +154,15 @@ class SoundManager:
         else:
             print(f"Background music directory does not exist: {self.background_music_dir}")
 
-        # If no special Pao music was found, use the first track or a fallback
+        # If no special Pao music was found but special_music.mp3 exists, use it
+        if not self.pao_music_path and self.playlist:
+            for track in self.playlist:
+                if 'special_music' in os.path.basename(track).lower():
+                    self.pao_music_path = track
+                    print(f"Using special_music.mp3 as Pao mode music")
+                    break
+        
+        # If still no Pao music, use the first track as fallback
         if not self.pao_music_path and self.playlist:
             self.pao_music_path = self.playlist[0]
             print("Using first track as Pao mode music")
@@ -191,6 +196,8 @@ class SoundManager:
         print("Starting background music...")
         self.is_playing = True
         self.pao_mode = False
+        # Reset to start of playlist
+        self.current_track_index = 0
         self.play_next_track()
 
     def toggle_shuffle(self):
@@ -238,6 +245,7 @@ class SoundManager:
                     try:
                         pygame.mixer.quit()
                         pygame.mixer.init()
+                        pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)  # Re-set end event
                         pygame.mixer.music.load(self.pao_music_path)
                         pygame.mixer.music.play(-1)
                         print("Reinitialized mixer and retried playing Pao music")
@@ -252,7 +260,7 @@ class SoundManager:
 
             # Try to load and play the track
             pygame.mixer.music.load(current_track)
-            pygame.mixer.music.play()
+            pygame.mixer.music.play()  # Play once, the end event will trigger next track
 
             # Check if music is actually playing
             if pygame.mixer.music.get_busy():
@@ -280,6 +288,7 @@ class SoundManager:
             try:
                 pygame.mixer.quit()
                 pygame.mixer.init()
+                pygame.mixer.music.set_endevent(self.MUSIC_END_EVENT)  # Re-set end event
                 print("Reinitialized mixer after music failure")
             except:
                 pass
