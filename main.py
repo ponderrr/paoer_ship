@@ -1139,7 +1139,7 @@ def game_mode_select():
                     ai_mode = (current_option == 0)
                     difficulty = ai_difficulties[current_difficulty] if ai_mode else None
 
-                    placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
+                    placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty, sound_manager)
                     player1_board, player2_board = placement_screen.run()
                     game_screen(ai_mode, difficulty, player1_board, player2_board)
                     running = False
