@@ -896,20 +896,30 @@ def game_mode_select():
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_ESCAPE, pygame.K_TAB]:
+                    sound_manager.play_sound("back")  # Play back sound
                     running = False
                 elif event.key == pygame.K_UP:
                     if current_option == 0 and current_difficulty > 0:
                         current_difficulty -= 1
+                        sound_manager.play_sound("navigate_up")  # Play up sound
                     else:
+                        old_option = current_option
                         current_option = (current_option - 1) % len(options)
                         current_difficulty = 0
+                        if old_option != current_option:
+                            sound_manager.play_sound("navigate_up")  # Play up sound
                 elif event.key == pygame.K_DOWN:
                     if current_option == 0 and current_difficulty < len(ai_difficulties) - 1:
                         current_difficulty += 1
+                        sound_manager.play_sound("navigate_down")  # Play down sound
                     else:
+                        old_option = current_option
                         current_option = (current_option + 1) % len(options)
                         current_difficulty = 0
+                        if old_option != current_option:
+                            sound_manager.play_sound("navigate_down")  # Play down sound
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    sound_manager.play_sound("accept")  # Play accept sound
                     ai_mode = (current_option == 0)
                     difficulty = ai_difficulties[current_difficulty] if ai_mode else None
 
@@ -923,18 +933,27 @@ def game_mode_select():
         if button_states['up']:
             if current_option == 0 and current_difficulty > 0:
                 current_difficulty -= 1
+                sound_manager.play_sound("navigate_up")  # Play up sound
             else:
+                old_option = current_option
                 current_option = (current_option - 1) % len(options)
                 current_difficulty = 0
+                if old_option != current_option:
+                    sound_manager.play_sound("navigate_up")  # Play up sound
 
         if button_states['down']:
             if current_option == 0 and current_difficulty < len(ai_difficulties) - 1:
                 current_difficulty += 1
+                sound_manager.play_sound("navigate_down")  # Play down sound
             else:
+                old_option = current_option
                 current_option = (current_option + 1) % len(options)
                 current_difficulty = 0
+                if old_option != current_option:
+                    sound_manager.play_sound("navigate_down")  # Play down sound
 
         if button_states['fire']:
+            sound_manager.play_sound("accept")  # Play accept sound
             ai_mode = (current_option == 0)
             difficulty = ai_difficulties[current_difficulty] if ai_mode else None
             placement_screen = ShipPlacementScreen(screen, gpio_handler, ai_mode, difficulty)
@@ -943,11 +962,12 @@ def game_mode_select():
             running = False
 
         if button_states['mode']:
+            sound_manager.play_sound("back")  # Play back sound
             running = False
 
         pygame.display.flip()
         clock.tick(30)
-
+        
 def main_menu():
     button_width = 200
     button_height = 50
