@@ -3,10 +3,11 @@ import os
 import random
 import threading
 import time
+import math
 
 class SoundManager:
     """
-    Handles game sound effects and music with playlist support
+    Handles game sound effects and music with single file looping support
     """
     def __init__(self, sound_dir="src/sounds"):
         """
@@ -32,21 +33,16 @@ class SoundManager:
         # Store sound directory
         self.sound_dir = sound_dir
         self.background_music_dir = os.path.join(self.sound_dir, "background_music")
+        self.background_music_path = os.path.join(self.background_music_dir, "background.mp3")
 
         # Initialize sounds dictionary
         self.sounds = {}
 
-        # Initialize playlist
-        self.playlist = []
-        self.current_track_index = 0
+        # Initialize music state
         self.is_playing = False
-        self.shuffle_mode = False
-        self.repeat_mode = False 
-
-        # Special music modes
         self.pao_mode = False
         self.pao_music_path = None
-
+        
         # Set up music end event - REMOVED due to potential issues on Pi
         # Instead, use a separate thread to monitor music
         self.monitor_thread = None
@@ -65,8 +61,8 @@ class SoundManager:
             self.sounds["accept"] = self._load_sound("accept.mp3")
             self.sounds["back"] = self._load_sound("back.mp3")
 
-            # Load background music playlist
-            self._load_music_playlist()
+            # Check for background music file and load Pao music path
+            self._load_music_paths()
 
         except Exception as e:
             print(f"Warning: Could not load sounds: {e}")
@@ -132,47 +128,51 @@ class SoundManager:
                 self.sounds["back"] = self.sounds["miss"]
                 print("Using miss sound as fallback for back")
 
-    def _load_music_playlist(self):
+    def _load_music_paths(self):
         """
-        Load all music files from the background music directory into a playlist
+        Check if background music file exists and set up Pao music
         """
-        print(f"Looking for music files in: {self.background_music_dir}")
-
-        # Look for music files in the background music directory
-        music_extensions = ['.mp3', '.ogg', '.wav']
-
-        # Add all music files from background music directory
-        if os.path.exists(self.background_music_dir):
-            files = os.listdir(self.background_music_dir)
-            print(f"Files found in directory: {files}")
-
-            for file in files:
-                if any(file.lower().endswith(ext) for ext in music_extensions):
-                    full_path = os.path.join(self.background_music_dir, file)
-                    self.playlist.append(full_path)
-                    print(f"Added to playlist: {file}")
-
-                    # Check for special Pao mode music
-                    if 'pao' in file.lower() or 'special' in file.lower():
-                        self.pao_music_path = full_path
-                        print(f"Found special Pao mode music: {file}")
-        else:
-            print(f"Background music directory does not exist: {self.background_music_dir}")
-
-        # If no special Pao music was found but special_music.mp3 exists, use it
-        if not self.pao_music_path and self.playlist:
-            for track in self.playlist:
-                if 'special_music' in os.path.basename(track).lower():
-                    self.pao_music_path = track
-                    print(f"Using special_music.mp3 as Pao mode music")
-                    break
+        print(f"Looking for background music file: {self.background_music_path}")
         
-        # If still no Pao music, use the first track as fallback
-        if not self.pao_music_path and self.playlist:
-            self.pao_music_path = self.playlist[0]
-            print("Using first track as Pao mode music")
-
-        print(f"Total music files loaded: {len(self.playlist)}")
+        # Check if background music file exists
+        if os.path.exists(self.background_music_path):
+            print(f"Background music file found: {self.background_music_path}")
+        else:
+            print(f"Warning: Background music file not found at {self.background_music_path}")
+            # Try to look in various locations
+            try:
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                possible_paths = [
+                    os.path.join(project_root, "sounds", "background.mp3"),
+                    os.path.join(project_root, "src", "sounds", "background.mp3"),
+                    os.path.join(project_root, "src", "sounds", "background_music", "background.mp3"),
+                    os.path.join(project_root, "assets", "sounds", "background.mp3")
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        self.background_music_path = path
+                        print(f"Found background music at: {path}")
+                        break
+            except Exception as e:
+                print(f"Error while searching for background music: {e}")
+        
+        # Set up Pao music path (try to find a special file or use background music)
+        self.pao_music_path = self.background_music_path
+        pao_music_name = "pao.mp3"
+        possible_pao_paths = [
+            os.path.join(os.path.dirname(self.background_music_path), pao_music_name),
+            os.path.join(os.path.dirname(os.path.dirname(self.background_music_path)), "sounds", pao_music_name),
+            os.path.join(project_root, "assets", "sounds", pao_music_name) if 'project_root' in locals() else None
+        ]
+        
+        for path in possible_pao_paths:
+            if path and os.path.exists(path):
+                self.pao_music_path = path
+                print(f"Found Pao mode music at: {path}")
+                break
+        else:
+            print("Using regular background music for Pao mode")
 
     def play_sound(self, sound_name):
         """
@@ -194,7 +194,7 @@ class SoundManager:
 
     def _music_monitor_thread(self):
         """
-        Monitor thread to check when music ends and play next track
+        Monitor thread to check when music ends and restart if needed
         """
         while self.is_playing:
             try:
@@ -202,113 +202,59 @@ class SoundManager:
                 if not pygame.mixer.music.get_busy() and not self.pao_mode:
                     time.sleep(0.5)  # Small delay to ensure track actually ended
                     if not pygame.mixer.music.get_busy():  # Double check
-                        print("Music finished, playing next track")
-                        self.play_next_track()
+                        print("Music ended unexpectedly, restarting")
+                        self.start_background_music()
                 time.sleep(0.1)  # Check every 100ms
             except Exception as e:
                 print(f"Error in music monitor thread: {e}")
                 time.sleep(1)  # Wait longer if there's an error
 
     def start_background_music(self):
-        """Start playing background music playlist"""
-        if not self.playlist:
-            print("No music files found in playlist")
+        """Start playing background music in a loop"""
+        if not os.path.exists(self.background_music_path):
+            print("No background music file found")
             return
 
-        print("Starting background music...")
-        self.is_playing = True
-        self.pao_mode = False
-        # Reset to start of playlist
-        self.current_track_index = 0
-        self.play_next_track()
-        
-        # Start monitoring thread if not already running
-        if self.monitor_thread is None or not self.monitor_thread.is_alive():
-            self.monitor_thread = threading.Thread(target=self._music_monitor_thread, daemon=True)
-            self.monitor_thread.start()
-            print("Started music monitor thread")
+        print(f"Starting background music: {self.background_music_path}")
+        try:
+            self.is_playing = True
+            self.pao_mode = False
+            pygame.mixer.music.load(self.background_music_path)
+            pygame.mixer.music.play(-1)  # -1 means loop indefinitely
+            print("Background music started in loop mode")
+            
+            # Start monitoring thread if not already running
+            if self.monitor_thread is None or not self.monitor_thread.is_alive():
+                self.monitor_thread = threading.Thread(target=self._music_monitor_thread, daemon=True)
+                self.monitor_thread.start()
+                print("Started music monitor thread")
+        except Exception as e:
+            print(f"Error starting background music: {e}")
 
     def toggle_shuffle(self):
-        """Toggle shuffle mode for the playlist"""
-        self.shuffle_mode = not self.shuffle_mode
-        if self.shuffle_mode and self.playlist:
-            # Shuffle the playlist
-            random.shuffle(self.playlist)
-        elif not self.shuffle_mode and self.playlist:
-            # Sort the playlist back to original order (by filename)
-            self.playlist.sort()
-        print(f"Shuffle mode: {'ON' if self.shuffle_mode else 'OFF'}")
-        return self.shuffle_mode
+        """Toggle shuffle mode (kept for compatibility, does nothing now)"""
+        print("Shuffle mode not applicable with single music file")
+        return False
     
     def toggle_repeat(self):
-        """Toggle repeat mode for the playlist"""
-        self.repeat_mode = not self.repeat_mode
-        print(f"Repeat mode: {'ON' if self.repeat_mode else 'OFF'}")
-        return self.repeat_mode
+        """Toggle repeat mode (kept for compatibility, always on now)"""
+        print("Repeat mode always on with single music file")
+        return True
     
     def get_shuffle_state(self):
-        """Get current shuffle state"""
-        return self.shuffle_mode
+        """Get current shuffle state (kept for compatibility)"""
+        return False
     
     def get_repeat_state(self):
-        """Get current repeat state"""
-        return self.repeat_mode
+        """Get current repeat state (kept for compatibility)"""
+        return True
 
     def play_next_track(self):
-        """Play the next track in the playlist"""
-        if not self.playlist:
-            print("No tracks in playlist to play")
-            return
-
-        # If in Pao mode, only play the Pao music
-        if self.pao_mode:
-            if self.pao_music_path:
-                try:
-                    pygame.mixer.music.load(self.pao_music_path)
-                    pygame.mixer.music.play(-1)  # Loop the Pao music
-                    print(f"Playing Pao mode music: {os.path.basename(self.pao_music_path)}")
-                except Exception as e:
-                    print(f"Error playing Pao music: {e}")
-            return
-
-        # Normal playlist playback
-        try:
-            current_track = self.playlist[self.current_track_index]
-            print(f"Attempting to play: {current_track}")
-
-            # Try to load and play the track
-            pygame.mixer.music.load(current_track)
-            pygame.mixer.music.play()  # Play once, monitor thread will handle next track
-
-            # Check if music is actually playing
-            if pygame.mixer.music.get_busy():
-                print(f"Successfully playing: {os.path.basename(current_track)}")
-            else:
-                print(f"Music loaded but not playing: {os.path.basename(current_track)}")
-
-            # Move to next track for next time
-            self.current_track_index = (self.current_track_index + 1) % len(self.playlist)
-            
-            # Handle playlist end and repeat mode
-            if self.current_track_index == 0 and not self.repeat_mode:
-                # If we've played through the whole playlist and repeat is off, stop
-                self.is_playing = False
-                print("Playlist ended, not repeating")
-                return
-
-        except Exception as e:
-            print(f"Error playing music: {e}")
-            print(f"Track that failed: {self.playlist[self.current_track_index]}")
-
-            # Try next track if this one fails
-            self.current_track_index = (self.current_track_index + 1) % len(self.playlist)
-            if self.playlist and self.current_track_index != 0:  # Avoid infinite recursion
-                self.play_next_track()
+        """Restart the background music (kept for compatibility)"""
+        self.start_background_music()
 
     def handle_music_end_event(self, event):
-        """
-        This method is kept for compatibility but isn't used anymore
-        """
+        """Handle music end event (kept for compatibility)"""
         pass
 
     def stop_background_music(self):
@@ -337,11 +283,11 @@ class SoundManager:
             print(f"Error starting Pao mode music: {e}")
 
     def end_pao_mode(self):
-        """End Pao mode and return to normal playlist"""
-        print("Ending Pao mode, returning to normal playlist")
+        """End Pao mode and return to normal music"""
+        print("Ending Pao mode, returning to normal music")
         self.pao_mode = False
         if self.is_playing:
-            self.play_next_track()
+            self.start_background_music()
 
     def pause_background_music(self):
         """Pause background music"""
@@ -390,3 +336,32 @@ class SoundManager:
                 if sound:
                     return sound.get_volume()
         return 0.7  # Default if no sounds loaded
+
+    def draw_now_playing(self, screen, x, y, font, width=300, height=50):
+        """
+        Draw a "Now Playing" display on screen
+        """
+        try:
+            # Create background rectangle
+            bg_rect = pygame.Rect(x, y, width, height)
+            pygame.draw.rect(screen, (30, 30, 30), bg_rect, border_radius=5)
+            pygame.draw.rect(screen, (100, 100, 100), bg_rect, 2, border_radius=5)
+            
+            # Get current music file name
+            if self.pao_mode:
+                current_track = os.path.basename(self.pao_music_path)
+                status = "PAO MODE"
+            else:
+                current_track = os.path.basename(self.background_music_path)
+                status = "Now Playing"
+                
+            # Render track info
+            track_name = current_track.replace(".mp3", "").replace("_", " ").title()
+            info_text = font.render(f"{status}: {track_name}", True, (200, 200, 200))
+            
+            # Center text in rectangle
+            text_rect = info_text.get_rect(center=(x + width//2, y + height//2))
+            screen.blit(info_text, text_rect)
+            
+        except Exception as e:
+            print(f"Error drawing now playing display: {e}")
