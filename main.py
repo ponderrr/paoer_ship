@@ -43,7 +43,7 @@ button_font = pygame.font.Font(None, 30)
 sound_manager = SoundManager()
 sound_manager.start_background_music()
 
-selected_background_color = BACKGROUND_COLORS[BLACK]
+selected_background_color = BACKGROUND_COLORS["Black"]
 
 class GPIOHandler:
     def __init__(self):
