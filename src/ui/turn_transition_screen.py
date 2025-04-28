@@ -1,7 +1,7 @@
 import pygame
 import time
 from src.board.game_board import CellState
-from src.main import selected_background_color
+from main import selected_background_color
 
 class TurnTransitionScreen:
     def __init__(self, screen, gpio_handler):

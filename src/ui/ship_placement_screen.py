@@ -4,7 +4,7 @@ import time
 import sys
 from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
-from src.main import selected_background_color
+from main import selected_background_color
 
 class ShipPlacementScreen:
     def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium", sound_manager=None):

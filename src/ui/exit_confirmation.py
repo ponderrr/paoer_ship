@@ -1,5 +1,5 @@
 import pygame
-from src.main import selected_background_color
+from main import selected_background_color
 
 
 class ExitConfirmation:
