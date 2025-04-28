@@ -1,5 +1,6 @@
 import pygame
 import os
+import math  # Import math module for sin function
 
 class ImageDisplay:
     def __init__(self, screen):
@@ -28,6 +29,24 @@ class ImageDisplay:
         image_path = os.path.join(project_root, "assets", "images", "pao.png")
         
         try:
+            # First, check if the image exists at the expected path
+            if not os.path.exists(image_path):
+                print(f"Pao image not found at: {image_path}")
+                # Try alternative locations
+                alt_paths = [
+                    os.path.join(project_root, "images", "pao.png"),
+                    os.path.join(project_root, "src", "assets", "images", "pao.png"),
+                    os.path.join(project_root, "pao.png")
+                ]
+                
+                for alt_path in alt_paths:
+                    if os.path.exists(alt_path):
+                        image_path = alt_path
+                        print(f"Found pao image at: {alt_path}")
+                        break
+                else:
+                    raise FileNotFoundError(f"Could not find pao.png in any expected location")
+            
             # Load the image
             image = pygame.image.load(image_path)
             
@@ -66,11 +85,18 @@ class ImageDisplay:
                 
                 # Pulsating effect for text
                 passed_time = (pygame.time.get_ticks() - start_time) / 1000
-                pulse = abs(pygame.math.sin(passed_time * 5))
+                # Use math.sin instead of pygame.math.sin
+                pulse = abs(math.sin(passed_time * 5))
                 text_color = (255, int(pulse * 150), int(pulse * 150))
                 
                 text = font.render("PAO MODE ACTIVATED!", True, text_color)
                 self.screen.blit(text, text_rect)
+                
+                # Draw "press any button to continue" text
+                continue_font = pygame.font.Font(None, 30)
+                continue_text = continue_font.render("Press any button to continue", True, (200, 200, 200))
+                continue_rect = continue_text.get_rect(center=(self.width // 2, self.height - 40))
+                self.screen.blit(continue_text, continue_rect)
                 
                 # Process events
                 for event in pygame.event.get():
@@ -87,4 +113,6 @@ class ImageDisplay:
             
         except Exception as e:
             print(f"Error displaying Pao image: {e}")
+            import traceback
+            traceback.print_exc()
             # Continue without displaying image

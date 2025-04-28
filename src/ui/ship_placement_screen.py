@@ -6,7 +6,7 @@ from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
 
 class ShipPlacementScreen:
-    def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium"):
+    def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium", sound_manager=None):
         """
         Initialize the ship placement screen
         
@@ -15,11 +15,13 @@ class ShipPlacementScreen:
             gpio_handler: GPIO interface for button inputs
             ai_mode: Whether playing against AI (True) or another player (False)
             difficulty: AI difficulty level if ai_mode is True
+            sound_manager: Sound manager for playing sound effects
         """
         self.screen = screen
         self.gpio_handler = gpio_handler
         self.ai_mode = ai_mode
         self.difficulty = difficulty
+        self.sound_manager = sound_manager
         
         # Screen dimensions
         self.width = screen.get_width()
@@ -65,7 +67,8 @@ class ShipPlacementScreen:
         
         # Placement state
         self.placement_complete = False
-        self.placement_valid = True
+        # Check initial placement validity right away
+        self.placement_valid = True  # Start with True
         
         # Confirmation dialog state
         self.showing_confirmation = False
@@ -81,6 +84,28 @@ class ShipPlacementScreen:
             'mode': False,
             'rotate': False  # New button for rotation
         }
+    
+    def play_invalid_sound(self):
+        """Play the invalid action sound"""
+        if self.sound_manager:
+            self.sound_manager.play_sound("back")  # Use back sound for invalid actions
+    
+    def check_placement_validity(self):
+        """Check if the current ship can be placed at the current position"""
+        if self.current_ship_index >= len(self.ship_types):
+            return True
+            
+        board = self.player1_board if self.current_player == 1 else self.player2_board
+        ship_name, ship_length = self.ship_types[self.current_ship_index]
+        
+        self.placement_valid = self.can_place_ship(
+            board, 
+            self.cursor_x, 
+            self.cursor_y, 
+            ship_length, 
+            self.current_ship_horizontal
+        )
+        return self.placement_valid
     
     def can_place_ship(self, board, x, y, length, horizontal):
         """Check if a ship can be placed at the given position"""
@@ -107,9 +132,25 @@ class ShipPlacementScreen:
                 
         return True
     
+# Fix for the place_current_ship method - correct indentation
+# Replace the existing method with this properly indented version
+
     def place_current_ship(self, board):
         """Place the current ship on the board"""
         ship_name, ship_length = self.ship_types[self.current_ship_index]
+        
+        # Double-check validity before placement
+        is_valid = self.can_place_ship(
+            board, 
+            self.cursor_x, 
+            self.cursor_y, 
+            ship_length, 
+            self.current_ship_horizontal
+        )
+        
+        if not is_valid:
+            self.play_invalid_sound()
+            return False
         
         success = board.place_ship(
             self.cursor_x, 
@@ -119,16 +160,26 @@ class ShipPlacementScreen:
         )
         
         if success:
+            # Play success sound
+            if self.sound_manager:
+                self.sound_manager.play_sound("hit")  # Using hit sound for successful placement
+                
             self.current_ship_index += 1
             
             # Reset position for next ship
             self.cursor_x = 0
             self.cursor_y = 0
             
+            # Check validity for next ship immediately
+            self.check_placement_validity()
+            
             # Check if all ships have been placed
             if self.current_ship_index >= len(self.ship_types):
                 if self.ai_mode or self.current_player == 2:
                     self.placement_complete = True
+                    # Play completion sound
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("ship_sunk")  # Using ship_sunk for completion
                 else:
                     # Show player transition screen before moving to player 2
                     self.show_player_transition_screen()
@@ -138,6 +189,12 @@ class ShipPlacementScreen:
                     self.current_player = 2
                     self.current_ship_index = 0
                     self.current_ship_horizontal = True
+                    # Check validity for the first ship of player 2
+                    self.check_placement_validity()
+        else:
+            # This should rarely happen since we check validity before placement,
+            # but play error sound just in case
+            self.play_invalid_sound()
         
         return success
     
@@ -176,6 +233,9 @@ class ShipPlacementScreen:
         self.current_ship_horizontal = True
         self.cursor_x = 0
         self.cursor_y = 0
+        
+        # Check validity for the first ship after reset
+        self.check_placement_validity()
     
     def get_button_states(self):
         """Get button states with edge detection"""
@@ -202,6 +262,11 @@ class ShipPlacementScreen:
             
         return button_states
     
+   # Update to the handle_input method in ShipPlacementScreen
+
+# Fix for the handle_input method - correct indentation
+# Replace the existing method with this properly indented version
+
     def handle_input(self):
         """Handle user input for ship placement"""
         button_states = self.get_button_states()
@@ -213,68 +278,139 @@ class ShipPlacementScreen:
             if self.showing_confirmation:
                 if button_states['up'] or button_states['down']:
                     self.confirmation_option = 1 - self.confirmation_option  # Toggle between 0 and 1
+                    # Play navigation sound if sound manager exists
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("navigate_up" if button_states['up'] else "navigate_down")
                     self.move_delay = current_time + 200
                 
                 elif button_states['fire']:
                     if self.confirmation_option == 0:  # Continue
                         self.showing_confirmation = False
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("accept")
                         return {'action': 'continue_game'}
                     else:  # Reset
                         self.showing_confirmation = False
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("accept")
                         self.reset_placement()
                 
                 return {'action': 'none'}
             
             # Handle regular ship placement
+            if self.current_ship_index >= len(self.ship_types):
+                return {'action': 'none'}
+                
             board = self.player1_board if self.current_player == 1 else self.player2_board
             ship_name, ship_length = self.ship_types[self.current_ship_index]
             
             moved = False
+            hit_boundary = False
             
             # Up button pressed
-            if button_states['up'] and self.cursor_y > 0:
-                self.cursor_y -= 1
-                moved = True
-                
+            if button_states['up']:
+                if self.cursor_x > 0:  # Note: cursor_x is row, cursor_y is column
+                    self.cursor_x -= 1
+                    moved = True
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("navigate_up")
+                else:
+                    hit_boundary = True
+                    
             # Down button pressed
-            if button_states['down'] and self.cursor_y < 9:
-                self.cursor_y += 1
-                moved = True
+            if button_states['down']:
+                # Check if moving down would make the ship go off board
+                max_row = 9
+                if not self.current_ship_horizontal and ship_length > 1:
+                    max_row = 10 - ship_length
+                
+                if self.cursor_x < max_row:
+                    self.cursor_x += 1
+                    moved = True
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("navigate_down")
+                else:
+                    hit_boundary = True
                 
             # Left button pressed
-            if button_states['left'] and self.cursor_x > 0:
-                self.cursor_x -= 1
-                moved = True
+            if button_states['left']:
+                if self.cursor_y > 0:
+                    self.cursor_y -= 1
+                    moved = True
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("navigate_up")  # Using up sound for left
+                else:
+                    hit_boundary = True
                 
             # Right button pressed
-            if button_states['right'] and self.cursor_x < 9:
-                self.cursor_x += 1
-                moved = True
+            if button_states['right']:
+                # Check if moving right would make the ship go off board
+                max_col = 9
+                if self.current_ship_horizontal and ship_length > 1:
+                    max_col = 10 - ship_length
+                
+                if self.cursor_y < max_col:
+                    self.cursor_y += 1
+                    moved = True
+                    if self.sound_manager:
+                        self.sound_manager.play_sound("navigate_down")  # Using down sound for right
+                else:
+                    hit_boundary = True
+                    
+            # Play boundary hit sound
+            if hit_boundary:
+                self.play_invalid_sound()
+                self.move_delay = current_time + 150
                 
             # Rotate button pressed
             if button_states['rotate']:
-                self.current_ship_horizontal = not self.current_ship_horizontal
-                moved = True
+                # Check if rotation would be valid (not off board)
+                if self.current_ship_horizontal:
+                    # Trying to switch to vertical
+                    if self.cursor_x + ship_length <= 10:
+                        self.current_ship_horizontal = False
+                        moved = True
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("accept")  # Use accept sound for successful rotation
+                    else:
+                        hit_boundary = True
+                        self.play_invalid_sound()
+                else:
+                    # Trying to switch to horizontal
+                    if self.cursor_y + ship_length <= 10:
+                        self.current_ship_horizontal = True
+                        moved = True
+                        if self.sound_manager:
+                            self.sound_manager.play_sound("accept")  # Use accept sound for successful rotation
+                    else:
+                        hit_boundary = True
+                        self.play_invalid_sound()
                 
             # Check if the current placement is valid after movement
             if moved:
-                self.placement_valid = self.can_place_ship(
-                    board, 
-                    self.cursor_x, 
-                    self.cursor_y, 
-                    ship_length, 
-                    self.current_ship_horizontal
-                )
+                was_valid = self.placement_valid
+                self.check_placement_validity()
+                # Play error sound if movement made placement invalid
+                if was_valid and not self.placement_valid:
+                    self.play_invalid_sound()
                 self.move_delay = current_time + 150
                 
             # Fire button pressed (place ship)
-            if button_states['fire'] and self.placement_valid:
-                self.place_current_ship(board)
+            if button_states['fire']:
+                if self.placement_valid:
+                    success = self.place_current_ship(board)
+                    if success and self.sound_manager:
+                        self.sound_manager.play_sound("accept")
+                else:
+                    # Play invalid sound for invalid placement attempt
+                    self.play_invalid_sound()
                 
             # Mode button pressed (reset placement)
             if button_states['mode']:
                 self.showing_confirmation = True
                 self.confirmation_option = 0
+                if self.sound_manager:
+                    self.sound_manager.play_sound("back")  # Use back sound for reset dialog
         
         return {'action': 'none'}
     
@@ -344,20 +480,20 @@ class ShipPlacementScreen:
             pygame.draw.rect(self.screen, preview_color, (cell_x, cell_y, self.cell_size - 2, self.cell_size - 2))
             
         # Draw cursor highlight around the ship's starting position
-            cursor_width = self.cell_size + 2
-            cursor_height = self.cell_size + 2
+        cursor_width = self.cell_size + 2
+        cursor_height = self.cell_size + 2
 
-            if self.current_ship_horizontal:
-                cursor_width = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
-            else:
-                cursor_height = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
-    
-            cursor_rect = pygame.Rect(
+        if self.current_ship_horizontal:
+            cursor_width = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
+        else:
+            cursor_height = self.ship_types[self.current_ship_index][1] * self.cell_size + 2
+
+        cursor_rect = pygame.Rect(
             offset_x + self.cursor_y * self.cell_size - 2,
             offset_y + self.cursor_x * self.cell_size - 2,
             cursor_width,
             cursor_height
-)
+        )
         pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR, cursor_rect, 2)
     
     def draw_ship_list(self, x, y):
@@ -534,6 +670,9 @@ class ShipPlacementScreen:
             # Small delay to prevent CPU hogging
             pygame.time.delay(100)
     
+    # Use only one run method with the correct indentation
+# Keep only this version and delete any duplicate run methods
+
     def run(self):
         """
         Run the ship placement screen
@@ -550,6 +689,9 @@ class ShipPlacementScreen:
             # Show player 1 setup screen
             self.show_player_setup_screen(1)
         
+        # Check validity of initial position (0,0) with first ship
+        self.check_placement_validity()
+        
         running = True
         while running and not self.placement_complete:
             # Fill background
@@ -565,10 +707,20 @@ class ShipPlacementScreen:
             title_rect = title.get_rect(center=(self.width // 2, 40))
             self.screen.blit(title, title_rect)
             
+            # Display Now Playing information if sound manager exists and music is playing
+            if self.sound_manager and self.sound_manager.is_playing and pygame.mixer.music.get_busy():
+                self.sound_manager.draw_now_playing(self.screen, 20, 20, self.info_font, width=200, height=40)
+            
             # Process events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                    pygame.quit()
+                    sys.exit()
+                
+                # Handle music end event if sound manager exists
+                if self.sound_manager:
+                    self.sound_manager.handle_music_end_event(event)
             
             # Handle input
             result = self.handle_input()

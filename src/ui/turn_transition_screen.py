@@ -111,23 +111,18 @@ class TurnTransitionScreen:
             result_rect = result.get_rect(center=(self.width // 2, self.height // 2))
             self.screen.blit(result, result_rect)
             
-            # Draw player's board in AI mode if provided
-            if is_ai_mode and player_board is not None:
+            # Draw player's board in AI mode ONLY if human player, not AI
+            if is_ai_mode and player_board is not None and player == 1:  # Only show board for human player
                 self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
                 board_title = self.info_font.render("Your Board", True, self.WHITE)
                 board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
                 self.screen.blit(board_title, board_title_rect)
             
-            # Draw time remaining
+            # Draw time remaining (removed "Press FIRE to continue" text)
             time_left = 4 - (time.time() - start_time)
             time_text = self.info_font.render(f"Continue in {time_left:.1f} seconds...", True, self.LIGHT_GRAY)
             time_rect = time_text.get_rect(center=(self.width // 2, self.height - 30))
             self.screen.blit(time_text, time_rect)
-            
-            # Draw skip prompt
-            skip_text = self.info_font.render("Press FIRE to continue", True, self.LIGHT_GRAY)
-            skip_rect = skip_text.get_rect(center=(self.width // 2, self.height - 60))
-            self.screen.blit(skip_text, skip_rect)
             
             # Update display
             pygame.display.flip()
