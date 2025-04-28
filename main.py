@@ -43,12 +43,6 @@ button_font = pygame.font.Font(None, 30)
 sound_manager = SoundManager()
 sound_manager.start_background_music()
 
-<<<<<<< HEAD
-selected_background_color = BACKGROUND_COLORS["Black"]
-
-=======
->>>>>>> 0232fa4265fae36fa80d252a8c4dd2901f75d382
-
 class GPIOHandler:
     def __init__(self):
         self.chip = None
@@ -203,13 +197,9 @@ def quit_game():
     sys.exit()
 
 def settings_screen():
-<<<<<<< HEAD
-    """Simplified settings screen"""
-    screen.fill(selected_background_color)
-=======
     """Settings screen with volume controls, shuffle and repeat options"""
+    screen.fill(selected_background_color)
     clock = pygame.time.Clock()
->>>>>>> 0232fa4265fae36fa80d252a8c4dd2901f75d382
     font = pygame.font.Font(None, 36)
     small_font = pygame.font.Font(None, 24)
     
@@ -225,7 +215,7 @@ def settings_screen():
     
     running = True
     while running:
-        screen.fill(BLACK)
+        screen.fill(selected_background_color)
         
         # Draw title
         title_text = font.render("Settings", True, WHITE)
@@ -728,15 +718,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                             player1_view[cursor_y][cursor_x] = CellState.MISS.value
 
                                             if pao_mode:
-<<<<<<< HEAD
-                                                screen.fill(selected_background_color)
-                                                draw_board(screen, font, player1_view, 150, 80, 30, cursor_x, cursor_y, True, "Your Shot")
-                                                draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
-=======
                                                 sound_manager.start_pao_mode()
-                                                screen.fill(BLACK)
+                                                screen.fill(selected_background_color)
                                                 draw_board(screen, font, player1_view, board_center_x, 80, 30, cursor_x, cursor_y, True, "Your Shot")
->>>>>>> 0232fa4265fae36fa80d252a8c4dd2901f75d382
 
                                                 miss_text = small_font.render(f"You fired at {chr(65 + cursor_x)}{cursor_y + 1}: MISS!", True, (0, 0, 255))
                                                 screen.blit(miss_text, (WIDTH // 2 - 100, HEIGHT - 70))
@@ -939,15 +923,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 else:
                     thinking_time = random.uniform(1.5, 2.0)
 
-<<<<<<< HEAD
+
                 screen.fill(selected_background_color)
-                draw_board(screen, font, player2_view, 150, 80, 30, -1, -1, False, "AI's Shot")
-                draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
-=======
-                screen.fill(BLACK)
-                # Remove the player's board display during AI's turn
                 draw_board(screen, font, player2_view, board_center_x, 80, 30, -1, -1, False, "AI's Shot")
->>>>>>> 0232fa4265fae36fa80d252a8c4dd2901f75d382
                 thinking_text = small_font.render("AI is thinking...", True, WHITE)
                 thinking_rect = thinking_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
                 screen.blit(thinking_text, thinking_rect)
@@ -1001,15 +979,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
                         ai_opponent.process_shot_result(board_x, board_y, hit, ship_sunk)
 
-<<<<<<< HEAD
                     screen.fill(selected_background_color)
-                    draw_board(screen, font, player2_view, 150, 80, 30, display_x, display_y, True, "AI's Shot")
-                    draw_board(screen, font, player1_own_view, 400, 80, 25, -1, -1, False, "Your Board")
-=======
-                    screen.fill(BLACK)
-                    # Show only the AI's shot board, not the player's board
                     draw_board(screen, font, player2_view, board_center_x, 80, 30, display_x, display_y, True, "AI's Shot")
->>>>>>> 0232fa4265fae36fa80d252a8c4dd2901f75d382
 
                     hit_text = "HIT!" if hit else "MISS"
                     ship_text = " Ship sunk!" if ship_sunk else ""
@@ -1131,7 +1102,8 @@ def main_menu():
     buttons = [
         Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
         Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
-        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
+        Button(center_x, start_y + spacing * 2, button_width, button_height, "Background Color", select_background_color),
+        Button(center_x, start_y + spacing * 3, button_width, button_height, "Quit", quit_game)
     ]
 
     current_selection = 0
@@ -1139,95 +1111,60 @@ def main_menu():
     clock = pygame.time.Clock()
     running = True
 
-    # Use the existing global sound_manager instance
-    global sound_manager
-
     while running:
-        screen.fill(BLACK)
+        screen.fill(selected_background_color)
         title_text = title_font.render("Pao'er Ship", True, WHITE)
         title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
         screen.blit(title_text, title_rect)
 
         for event in pygame.event.get():
-            # Handle music end event
-            sound_manager.handle_music_end_event(event)
-            
             if event.type == pygame.QUIT:
-                # Only quit the program if we're actually supposed to
                 running = False
-                quit_game()
-                return  # Exit function after quitting
             elif event.type == pygame.MOUSEMOTION:
                 for button in buttons:
                     button.check_hover(event.pos)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 for button in buttons:
-                    if button.rect.collidepoint(event.pos):
-                        sound_manager.play_sound("accept")
-                        button.check_click(event.pos)
+                    button.check_click(event.pos)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
                     for button in buttons:
                         button.selected = False
                     current_selection = (current_selection - 1) % len(buttons)
                     buttons[current_selection].selected = True
-                    sound_manager.play_sound("navigate_up")
                 elif event.key == pygame.K_DOWN:
                     for button in buttons:
                         button.selected = False
                     current_selection = (current_selection + 1) % len(buttons)
                     buttons[current_selection].selected = True
-                    sound_manager.play_sound("navigate_down")
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    sound_manager.play_sound("accept")
                     buttons[current_selection].action()
                 elif event.key == pygame.K_ESCAPE:
-                    # Only quit if the quit button is currently selected
-                    if current_selection == 2:  # Quit button index
-                        sound_manager.play_sound("back")
-                        running = False
-                        quit_game()
-                        return
-                    else:
-                        # Otherwise just make a sound
-                        sound_manager.play_sound("back")
+                    running = False
 
-        # Only check GPIO if we have a valid handler
-        if gpio_handler:
-            button_states = gpio_handler.get_button_states()
-            if button_states['up']:
-                for button in buttons:
-                    button.selected = False
-                current_selection = (current_selection - 1) % len(buttons)
-                buttons[current_selection].selected = True
-                sound_manager.play_sound("navigate_up")
+        button_states = gpio_handler.get_button_states()
+        if button_states['up']:
+            for button in buttons:
+                button.selected = False
+            current_selection = (current_selection - 1) % len(buttons)
+            buttons[current_selection].selected = True
 
-            if button_states['down']:
-                for button in buttons:
-                    button.selected = False
-                current_selection = (current_selection + 1) % len(buttons)
-                buttons[current_selection].selected = True
-                sound_manager.play_sound("navigate_down")
+        if button_states['down']:
+            for button in buttons:
+                button.selected = False
+            current_selection = (current_selection + 1) % len(buttons)
+            buttons[current_selection].selected = True
 
-            if button_states['fire']:
-                sound_manager.play_sound("accept")
-                buttons[current_selection].action()
-                
-            if button_states['mode']:
-                # MODE button now does nothing in the main menu (just plays a sound)
-                # This matches the behavior of other games where you can't "go back"
-                # from the main menu
-                sound_manager.play_sound("back")
-                # Don't quit - just continue
+        if button_states['fire']:
+            buttons[current_selection].action()
 
         for button in buttons:
             button.update()
             button.draw(screen)
 
         help_font = pygame.font.Font(None, 24)
-        # Update help text to reflect the new behavior
-        help_text = help_font.render("Up/Down: Navigate | Fire: Select", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 100, HEIGHT - 40))
+        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
+        screen.blit(help_text, (WIDTH // 2 - 150, HEIGHT - 40))
 
         pygame.display.flip()
         clock.tick(30)
@@ -1373,81 +1310,6 @@ def game_mode_select():
         pygame.display.flip()
         clock.tick(30)
 
-
-<<<<<<< HEAD
-    buttons = [
-        Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
-        Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
-        Button(center_x, start_y + spacing * 2, button_width, button_height, "Background Color", select_background_color),
-        Button(center_x, start_y + spacing * 3, button_width, button_height, "Quit", quit_game)
-    ]
-
-    current_selection = 0
-    buttons[current_selection].selected = True
-    clock = pygame.time.Clock()
-    running = True
-
-    while running:
-        screen.fill(selected_background_color)
-        title_text = title_font.render("Pao'er Ship", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, 100))
-        screen.blit(title_text, title_rect)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.MOUSEMOTION:
-                for button in buttons:
-                    button.check_hover(event.pos)
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for button in buttons:
-                    button.check_click(event.pos)
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    for button in buttons:
-                        button.selected = False
-                    current_selection = (current_selection - 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                elif event.key == pygame.K_DOWN:
-                    for button in buttons:
-                        button.selected = False
-                    current_selection = (current_selection + 1) % len(buttons)
-                    buttons[current_selection].selected = True
-                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    buttons[current_selection].action()
-                elif event.key == pygame.K_ESCAPE:
-                    running = False
-
-        button_states = gpio_handler.get_button_states()
-        if button_states['up']:
-            for button in buttons:
-                button.selected = False
-            current_selection = (current_selection - 1) % len(buttons)
-            buttons[current_selection].selected = True
-
-        if button_states['down']:
-            for button in buttons:
-                button.selected = False
-            current_selection = (current_selection + 1) % len(buttons)
-            buttons[current_selection].selected = True
-
-        if button_states['fire']:
-            buttons[current_selection].action()
-
-        for button in buttons:
-            button.update()
-            button.draw(screen)
-
-        help_font = pygame.font.Font(None, 24)
-        help_text = help_font.render("Up/Down: Navigate | Fire: Select | Mode: Back", True, LIGHT_GRAY)
-        screen.blit(help_text, (WIDTH // 2 - 150, HEIGHT - 40))
-
-        pygame.display.flip()
-        clock.tick(30)
-
-gpio_handler = GPIOHandler()
-=======
->>>>>>> 0232fa4265fae36fa80d252a8c4dd2901f75d382
 
 def main():
     try:
