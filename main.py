@@ -1002,7 +1002,7 @@ def main_menu():
         Button(center_x, start_y, button_width, button_height, "Start Game", game_mode_select),
         Button(center_x, start_y + spacing, button_width, button_height, "Settings", settings_screen),
         Button(center_x, start_y + spacing * 2, button_width, button_height, "Background Color", select_background_color),
-        Button(center_x, start_y + spacing * 2, button_width, button_height, "Quit", quit_game)
+        Button(center_x, start_y + spacing * 3, button_width, button_height, "Quit", quit_game)
     ]
 
     current_selection = 0
