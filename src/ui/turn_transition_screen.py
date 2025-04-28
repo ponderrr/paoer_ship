@@ -1,6 +1,7 @@
 import pygame
 import time
 from src.board.game_board import CellState
+from src.main import selected_background_color
 
 class TurnTransitionScreen:
     def __init__(self, screen, gpio_handler):
@@ -83,7 +84,8 @@ class TurnTransitionScreen:
         
         while time.time() - start_time < 4:
             # Fill background
-            self.screen.fill(self.BLACK)
+            self.screen.fill(selected_background_color)
+
             
             # Draw title
             player_name = f"Player {player}" if player == 1 or not is_ai_mode else "AI"
@@ -153,7 +155,7 @@ class TurnTransitionScreen:
             player_board: Player's own board to display (for AI mode)
         """
         # Fill background
-        self.screen.fill(self.BLACK)
+        self.screen.fill(selected_background_color)
         
         player_name = f"PLAYER {player}" if player == 1 or not is_ai_mode else "AI"
         # Draw title

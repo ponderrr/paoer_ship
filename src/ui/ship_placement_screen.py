@@ -4,6 +4,7 @@ import time
 import sys
 from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
+from src.main import selected_background_color
 
 class ShipPlacementScreen:
     def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium", sound_manager=None):
@@ -570,7 +571,8 @@ class ShipPlacementScreen:
             player_number (int): Player number (1 or 2)
         """
         # Fill screen with a dark background
-        self.screen.fill(self.BLACK)
+        self.screen.fill(selected_background_color)
+
         
         # Draw title
         title = self.title_font.render(f"PLAYER {player_number} SHIP PLACEMENT", True, self.WHITE)
@@ -627,7 +629,7 @@ class ShipPlacementScreen:
         This prevents player 2 from seeing player 1's ship placements
         """
         # Fill screen with a dark background
-        self.screen.fill(self.BLACK)
+        self.screen.fill(selected_background_color)
         
         # Draw title
         title = self.title_font.render("PLAYER 1 SHIPS PLACED", True, self.WHITE)
@@ -695,7 +697,8 @@ class ShipPlacementScreen:
         running = True
         while running and not self.placement_complete:
             # Fill background
-            self.screen.fill(self.BLACK)
+            self.screen.fill(selected_background_color)
+
             
             # Draw title based on current state
             if self.ai_mode:

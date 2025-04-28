@@ -40,7 +40,15 @@ GAME_STATE_GAME_OVER = "game_over"
 # Background Colors
 BACKGROUND_COLORS = {
     "Black": (0, 0, 0),
-    "White": (255, 255, 255),
     "Navy": (0, 0, 128),
-    "Gray": (128, 128, 128)
+    "Gray": (128, 128, 128),
+    "Red": (255, 0, 0),
+    "Green": (0, 255, 0),
+    "Blue": (0, 0, 255),
+    "Yellow": (255, 255, 0),
+    "Magenta": (255, 0, 255),
+    "Cyan":    (0, 255, 255),
+    "Orange":  (255, 165, 0),
+    "Purple":  (128, 0, 128),
+    "Pink":    (255, 192, 203),
 }

@@ -1,4 +1,6 @@
 import pygame
+from src.main import selected_background_color
+
 
 class ExitConfirmation:
     def __init__(self, screen, gpio_handler):
