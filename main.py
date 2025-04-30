@@ -4,11 +4,12 @@ import time
 import numpy as np
 import random
 from src.board.game_board import GameBoard, CellState
-from src.ui.ship_placement_screen import ShipPlacementScreen
 from src.game.ai_opponent import AIOpponent, AIDifficulty
 from src.utils.image_display import ImageDisplay
 from src.sound.sound_manager import SoundManager
 from src.utils.constants import BACKGROUND_COLORS
+
+from src.ui.ship_placement_screen import ShipPlacementScreen
 
 # Try to import GPIO support
 try:
