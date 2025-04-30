@@ -5,6 +5,7 @@ import sys
 from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
 
+# Import from config instead of main
 import config
 
 class ShipPlacementScreen:
@@ -29,10 +30,14 @@ class ShipPlacementScreen:
         self.width = screen.get_width()
         self.height = screen.get_height()
         
-        # Grid settings
-        self.cell_size = 30
-        self.grid_offset_x = 150
-        self.grid_offset_y = 100
+        # Grid settings - scale based on screen size and center properly
+        self.cell_size = int(min(self.width, self.height) * 0.03)  # 3% of screen's smaller dimension
+        board_width = self.cell_size * 10
+        board_height = self.cell_size * 10
+        
+        # Center grid on screen
+        self.grid_offset_x = (self.width - board_width) // 2
+        self.grid_offset_y = (self.height - board_height) // 2
         
         # Colors
         self.BLACK = (0, 0, 0)
@@ -44,9 +49,11 @@ class ShipPlacementScreen:
         self.INVALID_COLOR = (255, 100, 100)
         self.HIGHLIGHT_COLOR = (255, 255, 0)
         
-        # Fonts
-        self.title_font = pygame.font.Font(None, 36)
-        self.info_font = pygame.font.Font(None, 24)
+        # Fonts - scale with screen size
+        self.title_font_size = max(36, int(self.height * 0.033))
+        self.info_font_size = max(24, int(self.height * 0.022))
+        self.title_font = pygame.font.Font(None, self.title_font_size)
+        self.info_font = pygame.font.Font(None, self.info_font_size)
         
         # Game boards
         self.player1_board = GameBoard()
@@ -415,21 +422,21 @@ class ShipPlacementScreen:
             # Column labels (A-J)
             letter = chr(65 + i)
             text = self.info_font.render(letter, True, self.WHITE)
-            self.screen.blit(text, (offset_x + i * self.cell_size + 10, offset_y - 30))
+            self.screen.blit(text, (offset_x + i * self.cell_size + self.cell_size // 3, offset_y - 30))
             
             # Row labels (1-10)
             number = str(i + 1)
             text = self.info_font.render(number, True, self.WHITE)
-            self.screen.blit(text, (offset_x - 30, offset_y + i * self.cell_size + 10))
+            self.screen.blit(text, (offset_x - 30, offset_y + i * self.cell_size + self.cell_size // 3))
         
         # Draw grid cells
         for y in range(10):
             for x in range(10):
-                cell_x = offset_x + y * self.cell_size
-                cell_y = offset_y + x * self.cell_size
+                cell_x = offset_x + x * self.cell_size
+                cell_y = offset_y + y * self.cell_size
                 
                 # Get cell state
-                cell_state = board.board[x, y]
+                cell_state = board.board[y, x]
                 
                 # Determine cell color based on state
                 if cell_state == CellState.EMPTY.value:
@@ -521,7 +528,8 @@ class ShipPlacementScreen:
             "Rotate: Change Orientation"
         ]
         
-        y_offset = self.height - 120
+        # Position controls at bottom of screen
+        y_offset = self.height - (len(controls) * 25 + 20)
         for control in controls:
             text = self.info_font.render(control, True, self.LIGHT_GRAY)
             self.screen.blit(text, (20, y_offset))
@@ -529,8 +537,15 @@ class ShipPlacementScreen:
     
     def draw_confirmation_dialog(self):
         """Draw the reset confirmation dialog"""
-        # Dialog background
-        dialog_rect = pygame.Rect(self.width // 2 - 150, self.height // 2 - 100, 300, 200)
+        # Dialog background - centered on screen
+        dialog_width = 300
+        dialog_height = 200
+        dialog_rect = pygame.Rect(
+            (self.width - dialog_width) // 2,
+            (self.height - dialog_height) // 2,
+            dialog_width,
+            dialog_height
+        )
         pygame.draw.rect(self.screen, (50, 50, 50), dialog_rect)
         pygame.draw.rect(self.screen, self.WHITE, dialog_rect, 2)
         
@@ -581,16 +596,19 @@ class ShipPlacementScreen:
         ships_text_rect = ships_text.get_rect(center=(self.width // 2, self.height // 2 + 10))
         self.screen.blit(ships_text, ships_text_rect)
         
+        # Use proportional spacing based on screen height
         y_offset = self.height // 2 + 40
+        y_spacing = int(self.height * 0.025)  # 2.5% of screen height
+        
         for ship_name, ship_length in self.ship_types:
             ship_info = self.info_font.render(f"{ship_name} ({ship_length} spaces)", True, self.LIGHT_GRAY)
             ship_info_rect = ship_info.get_rect(center=(self.width // 2, y_offset))
             self.screen.blit(ship_info, ship_info_rect)
-            y_offset += 25
+            y_offset += y_spacing
         
         # Draw continue prompt
         prompt = self.info_font.render("Press FIRE button to start placement", True, self.LIGHT_GRAY)
-        prompt_rect = prompt.get_rect(center=(self.width // 2, y_offset + 30))
+        prompt_rect = prompt.get_rect(center=(self.width // 2, y_offset + y_spacing))
         self.screen.blit(prompt, prompt_rect)
         
         # Update display
@@ -613,7 +631,7 @@ class ShipPlacementScreen:
                 waiting = False
                 
             # Small delay to prevent CPU hogging
-            pygame.time.delay(100)
+            pygame.time.delay(50)
     
     def show_player_transition_screen(self):
         """
@@ -662,7 +680,7 @@ class ShipPlacementScreen:
                 waiting = False
                 
             # Small delay to prevent CPU hogging
-            pygame.time.delay(100)
+            pygame.time.delay(50)
     
     def run(self):
         """
@@ -725,8 +743,10 @@ class ShipPlacementScreen:
             else:
                 self.draw_board(self.player2_board, self.grid_offset_x, self.grid_offset_y)
             
-            # Draw ship list
-            self.draw_ship_list(self.width - 200, 100)
+            # Draw ship list - position to the right of the board
+            ship_list_x = self.grid_offset_x + (self.cell_size * 10) + 50
+            ship_list_y = self.grid_offset_y
+            self.draw_ship_list(ship_list_x, ship_list_y)
             
             # Draw controls help
             self.draw_controls_help()
@@ -740,7 +760,9 @@ class ShipPlacementScreen:
                     True, 
                     self.WHITE
                 )
-                self.screen.blit(ship_info, (self.grid_offset_x, self.grid_offset_y - 60))
+                # Position above the board
+                ship_info_rect = ship_info.get_rect(center=(self.width // 2, self.grid_offset_y - 30))
+                self.screen.blit(ship_info, ship_info_rect)
             
             # Draw confirmation dialog if showing
             if self.showing_confirmation:

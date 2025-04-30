@@ -1,7 +1,8 @@
 import pygame
 import time
 from src.board.game_board import CellState
-from main import selected_background_color
+# Fix the circular import by using the config module
+import config
 
 class TurnTransitionScreen:
     def __init__(self, screen, gpio_handler):
@@ -26,9 +27,11 @@ class TurnTransitionScreen:
         self.LIGHT_BLUE = (80, 170, 255)
         self.LIGHT_GRAY = (180, 180, 180)
         
-        # Fonts
-        self.title_font = pygame.font.Font(None, 36)
-        self.info_font = pygame.font.Font(None, 24)
+        # Fonts - Scale with screen size for better readability on different resolutions
+        self.title_font_size = max(36, int(self.height * 0.033))
+        self.info_font_size = max(24, int(self.height * 0.022))
+        self.title_font = pygame.font.Font(None, self.title_font_size)
+        self.info_font = pygame.font.Font(None, self.info_font_size)
         
         # Button handling
         self.last_button_states = {
@@ -82,10 +85,12 @@ class TurnTransitionScreen:
         # Display the result for 4 seconds
         start_time = time.time()
         
+        # Calculate board size based on screen dimensions
+        cell_size = int(min(self.width, self.height) * 0.012)  # Scale cell size
+        
         while time.time() - start_time < 4:
             # Fill background
-            self.screen.fill(selected_background_color)
-
+            self.screen.fill(config.selected_background_color)
             
             # Draw title
             player_name = f"Player {player}" if player == 1 or not is_ai_mode else "AI"
@@ -115,7 +120,9 @@ class TurnTransitionScreen:
             
             # Draw player's board in AI mode ONLY if human player, not AI
             if is_ai_mode and player_board is not None and player == 1:  # Only show board for human player
-                self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
+                # Scale cell size based on screen
+                board_cell_size = max(12, int(min(self.width, self.height) * 0.012))
+                self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), board_cell_size)
                 board_title = self.info_font.render("Your Board", True, self.WHITE)
                 board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
                 self.screen.blit(board_title, board_title_rect)
@@ -155,7 +162,7 @@ class TurnTransitionScreen:
             player_board: Player's own board to display (for AI mode)
         """
         # Fill background
-        self.screen.fill(selected_background_color)
+        self.screen.fill(config.selected_background_color)
         
         player_name = f"PLAYER {player}" if player == 1 or not is_ai_mode else "AI"
         # Draw title
@@ -176,7 +183,9 @@ class TurnTransitionScreen:
         
         # Draw player's board in AI mode if provided
         if is_ai_mode and player_board is not None:
-            self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), 12)
+            # Scale cell size based on screen
+            board_cell_size = max(12, int(min(self.width, self.height) * 0.012))
+            self._draw_mini_board(player_board, self.width // 2, int(self.height * 0.6), board_cell_size)
             board_title = self.info_font.render("Your Board", True, self.WHITE)
             board_title_rect = board_title.get_rect(center=(self.width // 2, int(self.height * 0.53)))
             self.screen.blit(board_title, board_title_rect)
