@@ -2,7 +2,7 @@
 
 Pao'er Ship is a Battleship-style game designed for Raspberry Pi with hardware button controls. It features both single-player mode against AI opponents of varying difficulty levels and two-player mode for head-to-head gameplay.
 
-![Pao'er Ship Game](https://youtu.be/Ar6fDDg43Mo?feature=shared)
+[Watch the gameplay demo on YouTube](https://youtu.be/Ar6fDDg43Mo?feature=shared)
 
 ## Features
 
