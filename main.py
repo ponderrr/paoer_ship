@@ -506,8 +506,8 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
         from src.utils.image_display import ImageDisplay
 
         clock = pygame.time.Clock()
-        font = pygame.font.Font(None, 36)
-        small_font = pygame.font.Font(None, 24)
+        font = pygame.font.Font(None, 56)
+        small_font = pygame.font.Font(None, 42)
 
         if player1_board is None:
             player1_board = GameBoard()
@@ -590,6 +590,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
 
             exit_text = small_font.render("Press MODE to exit", True, LIGHT_GRAY)
             screen.blit(exit_text, (20, HEIGHT - 30))
+
+            # Increase cell size for better visibility
+            cell_size = 40
             
             # Timer display for player vs player mode
             if not ai_mode and not winner and not showing_exit_dialog:
@@ -639,7 +642,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                 own_board = player2_own_view
 
             # Draw the opponent's board centered
-            board_center_x = WIDTH // 2 - 150  # Center the board
+            board_center_x = WIDTH // 2 - (5 * cell_size)
             draw_board(
                 screen,
                 font,
@@ -660,7 +663,9 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                     player_text = font.render("Player 2's Turn", True, WHITE)
                 else:
                     player_text = font.render("AI's Turn", True, WHITE)
-                screen.blit(player_text, (20, 20))
+            # Center the player text at the top
+                player_text_rect = player_text.get_rect(center=(WIDTH // 2, 40))
+                screen.blit(player_text, player_text_rect)
 
             if winner:
                 if winner == 1:
@@ -677,13 +682,15 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
             else:
                 if current_player == 1:
                     status_text = small_font.render("Press FIRE to shoot", True, WHITE)
-                    screen.blit(status_text, (WIDTH // 2 - 80, HEIGHT - 40))
                 else:
                     if ai_mode:
                         status_text = small_font.render("AI is thinking...", True, WHITE)
                     else:
                         status_text = small_font.render("Player 2: Press FIRE to shoot", True, WHITE)
-                    screen.blit(status_text, (WIDTH // 2 - 100, HEIGHT - 40))
+                
+                # Center all status text
+                status_rect = status_text.get_rect(center=(WIDTH // 2, HEIGHT - 40))
+                screen.blit(status_text, status_rect)
 
 
             if not turn_in_progress:
@@ -1050,25 +1057,28 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
     board_width = 10 * cell_size
     board_height = 10 * cell_size
     
-    # Adjust offset if we want to center the board
+    # Draw title with larger font if provided
     if title:
-        title_text = font.render(title, True, WHITE)
-        title_rect = title_text.get_rect(center=(offset_x + board_width // 2, offset_y - 30))
+        # Use a larger font for the title
+        title_font = pygame.font.Font(None, 56)  # Increased from smaller size
+        title_text = title_font.render(title, True, WHITE)
+        title_rect = title_text.get_rect(center=(offset_x + board_width // 2, offset_y - 48))
         screen.blit(title_text, title_rect)
 
-    # Draw column labels (A-J)
+    # Draw column labels (A-J) with larger font
+    label_font = pygame.font.Font(None, 36)  # Increased from 20
     for i in range(10):
         letter = chr(65 + i)
-        text = pygame.font.Font(None, 20).render(letter, True, WHITE)
-        screen.blit(text, (offset_x + i * cell_size + cell_size // 3, offset_y - 20))
+        text = label_font.render(letter, True, WHITE)
+        screen.blit(text, (offset_x + i * cell_size + cell_size // 3, offset_y - 30))
 
-    # Draw row labels (1-10)
+    # Draw row labels (1-10) with larger font
     for i in range(10):
         number = str(i + 1)
-        text = pygame.font.Font(None, 20).render(number, True, WHITE)
-        screen.blit(text, (offset_x - 20, offset_y + i * cell_size + cell_size // 3))
-
-    # Draw the board cells
+        text = label_font.render(number, True, WHITE)
+        screen.blit(text, (offset_x - 30, offset_y + i * cell_size + cell_size // 3))
+        
+    # Draw the board cells (keep this part unchanged but ensure it's included)
     for y in range(10):
         for x in range(10):
             cell_rect = pygame.Rect(
@@ -1090,7 +1100,7 @@ def draw_board(screen, font, board, offset_x, offset_y, cell_size, cursor_x, cur
             pygame.draw.rect(screen, color, cell_rect)
             pygame.draw.rect(screen, (100, 100, 100), cell_rect, 1)
 
-    # Draw cursor if needed
+    # Draw cursor if needed (keep this part unchanged but ensure it's included)
     if show_cursor and cursor_x >= 0 and cursor_y >= 0:
         cursor_rect = pygame.Rect(
             offset_x + cursor_x * cell_size - 2,
@@ -1184,8 +1194,8 @@ gpio_handler = GPIOHandler()
 def game_mode_select():
     """Screen to select game mode (AI or Player) and AI difficulty"""
     clock = pygame.time.Clock()
-    font = pygame.font.Font(None, 36)
-    small_font = pygame.font.Font(None, 28)
+    font = pygame.font.Font(None, 72)
+    small_font = pygame.font.Font(None, 56)
 
     options = ["VS AI", "VS Player"]
     ai_difficulties = ["Easy", "Medium", "Hard", "Pao"]
@@ -1203,7 +1213,7 @@ def game_mode_select():
         for i, option in enumerate(options):
             color = LIGHT_BLUE if i == current_option else WHITE
             option_text = font.render(option, True, color)
-            option_rect = option_text.get_rect(center=(WIDTH // 2, 180 + i * 60))
+            option_rect = option_text.get_rect(center=(WIDTH // 2, 180 + i * 100))  
             screen.blit(option_text, option_rect)
 
             if i == current_option:
@@ -1213,7 +1223,7 @@ def game_mode_select():
 
         if current_option == 0:
             difficulty_title = small_font.render("Select Difficulty:", True, WHITE)
-            screen.blit(difficulty_title, (WIDTH // 2 - 100, 320))
+            screen.blit(difficulty_title, (WIDTH // 2 - 150, 320))  
 
             for i, diff in enumerate(ai_difficulties):
                 if diff == "Pao":
@@ -1222,8 +1232,9 @@ def game_mode_select():
                     color = LIGHT_BLUE if i == current_difficulty else WHITE
 
                 diff_text = small_font.render(diff, True, color)
-                diff_rect = diff_text.get_rect(center=(WIDTH // 2, 360 + i * 40))
+                diff_rect = diff_text.get_rect(center=(WIDTH // 2, 380 + i * 70))  
                 screen.blit(diff_text, diff_rect)
+
 
                 if i == current_difficulty:
                     rect = pygame.Rect(diff_rect.left - 10, diff_rect.top - 5,

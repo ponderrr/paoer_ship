@@ -58,8 +58,8 @@ class SoundManager:
             # Menu navigation sounds
             self.sounds["navigate_up"] = self._load_sound("navigate_up.mp3")
             self.sounds["navigate_down"] = self._load_sound("navigate_down.mp3")
-            self.sounds["accept"] = self._load_sound("accept.mp3")
-            self.sounds["back"] = self._load_sound("back.mp3")
+            self.sounds["accept"] = self._load_sound("navigate_up.mp3")
+            self.sounds["back"] = self._load_sound("navigate_down.mp3")
 
             # Check for background music file and load Pao music path
             self._load_music_paths()
@@ -119,12 +119,18 @@ class SoundManager:
                 print("Using fire sound as fallback for navigate_down")
 
         if "accept" not in self.sounds or self.sounds["accept"] is None:
-            if "hit" in self.sounds and self.sounds["hit"] is not None:
+            if "navigate_up" in self.sounds and self.sounds["navigate_up"] is not None:
+                self.sounds["accept"] = self.sounds["navigate_up"]
+                print("Using navigate_up sound as fallback for accept")
+            elif "hit" in self.sounds and self.sounds["hit"] is not None:
                 self.sounds["accept"] = self.sounds["hit"]
                 print("Using hit sound as fallback for accept")
 
         if "back" not in self.sounds or self.sounds["back"] is None:
-            if "miss" in self.sounds and self.sounds["miss"] is not None:
+            if "navigate_down" in self.sounds and self.sounds["navigate_down"] is not None:
+                self.sounds["back"] = self.sounds["navigate_down"]
+                print("Using navigate_down sound as fallback for back")
+            elif "miss" in self.sounds and self.sounds["miss"] is not None:
                 self.sounds["back"] = self.sounds["miss"]
                 print("Using miss sound as fallback for back")
 
