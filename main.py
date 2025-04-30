@@ -23,8 +23,8 @@ except ImportError:
 # Initialize Pygame
 pygame.init()
 
-# Screen settings - smaller for better performance
-WIDTH, HEIGHT = 640, 480
+# Screen settings 
+WIDTH, HEIGHT = 1920, 1080
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Pao'er Ship")
 
