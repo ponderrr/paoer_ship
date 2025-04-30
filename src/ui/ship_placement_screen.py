@@ -4,7 +4,8 @@ import time
 import sys
 from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
-from main import selected_background_color
+
+import config
 
 class ShipPlacementScreen:
     def __init__(self, screen, gpio_handler=None, ai_mode=True, difficulty="Medium", sound_manager=None):
@@ -133,9 +134,6 @@ class ShipPlacementScreen:
                 
         return True
     
-# Fix for the place_current_ship method - correct indentation
-# Replace the existing method with this properly indented version
-
     def place_current_ship(self, board):
         """Place the current ship on the board"""
         ship_name, ship_length = self.ship_types[self.current_ship_index]
@@ -263,11 +261,6 @@ class ShipPlacementScreen:
             
         return button_states
     
-   # Update to the handle_input method in ShipPlacementScreen
-
-# Fix for the handle_input method - correct indentation
-# Replace the existing method with this properly indented version
-
     def handle_input(self):
         """Handle user input for ship placement"""
         button_states = self.get_button_states()
@@ -571,8 +564,7 @@ class ShipPlacementScreen:
             player_number (int): Player number (1 or 2)
         """
         # Fill screen with a dark background
-        self.screen.fill(selected_background_color)
-
+        self.screen.fill(config.selected_background_color)
         
         # Draw title
         title = self.title_font.render(f"PLAYER {player_number} SHIP PLACEMENT", True, self.WHITE)
@@ -629,7 +621,7 @@ class ShipPlacementScreen:
         This prevents player 2 from seeing player 1's ship placements
         """
         # Fill screen with a dark background
-        self.screen.fill(selected_background_color)
+        self.screen.fill(config.selected_background_color)
         
         # Draw title
         title = self.title_font.render("PLAYER 1 SHIPS PLACED", True, self.WHITE)
@@ -672,9 +664,6 @@ class ShipPlacementScreen:
             # Small delay to prevent CPU hogging
             pygame.time.delay(100)
     
-    # Use only one run method with the correct indentation
-# Keep only this version and delete any duplicate run methods
-
     def run(self):
         """
         Run the ship placement screen
@@ -697,8 +686,7 @@ class ShipPlacementScreen:
         running = True
         while running and not self.placement_complete:
             # Fill background
-            self.screen.fill(selected_background_color)
-
+            self.screen.fill(config.selected_background_color)
             
             # Draw title based on current state
             if self.ai_mode:
