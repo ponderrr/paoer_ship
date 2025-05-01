@@ -1032,7 +1032,7 @@ def game_screen(ai_mode=True, difficulty="Medium", player1_board=None, player2_b
                                 # PLAY FIRE SOUND HERE
                                 sound_manager.play_sound("fire")
 
-                                if current_player == 1 and (board_x := y, board_y := x) not in player1_shots:
+                                if current_player == 1 and (board_x := cursor_y, board_y := cursor_x) not in player1_shots:
                                     board_x, board_y = cursor_y, cursor_x
 
                                     if (board_x, board_y) not in player1_shots:
