@@ -1,4 +1,3 @@
-# src/hardware/gpio_interface.py
 from abc import ABC, abstractmethod
 
 class GPIOInterface(ABC):

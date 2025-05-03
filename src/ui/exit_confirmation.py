@@ -13,11 +13,9 @@ class ExitConfirmation:
         self.screen = screen
         self.gpio_handler = gpio_handler
         
-        # Screen dimensions
         self.width = screen.get_width()
         self.height = screen.get_height()
         
-        # Colors
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.BLUE = (50, 150, 255)
@@ -25,13 +23,11 @@ class ExitConfirmation:
         self.LIGHT_GRAY = (180, 180, 180)
         self.RED = (255, 80, 80)
         
-        # Fonts - scale with screen size
         self.title_font_size = max(36, int(self.height * 0.033))
         self.info_font_size = max(24, int(self.height * 0.022))
         self.title_font = pygame.font.Font(None, self.title_font_size)
         self.info_font = pygame.font.Font(None, self.info_font_size)
         
-        # Button handling
         self.last_button_states = {
             'up': False,
             'down': False,
@@ -47,7 +43,6 @@ class ExitConfirmation:
         if self.gpio_handler:
             current_states = self.gpio_handler.get_button_states()
         else:
-            # Handle keyboard input as fallback
             keys = pygame.key.get_pressed()
             current_states = {
                 'up': keys[pygame.K_UP],
@@ -59,7 +54,6 @@ class ExitConfirmation:
                 'rotate': keys[pygame.K_r]
             }
         
-        # Edge detection (only trigger on button press, not hold)
         button_states = {}
         for key in current_states:
             button_states[key] = current_states[key] and not self.last_button_states[key]
@@ -74,16 +68,13 @@ class ExitConfirmation:
         Returns:
             bool: True if exit confirmed, False if cancelled
         """
-        # Calculate dialog size based on screen dimensions
         dialog_width = int(min(400, self.width * 0.4))
         dialog_height = int(min(200, self.height * 0.25))
         
-        # Overlay a semi-transparent background
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))  # Black with 70% opacity
+        overlay.fill((0, 0, 0, 180)) 
         self.screen.blit(overlay, (0, 0))
         
-        # Create the dialog box - centered on screen
         dialog_rect = pygame.Rect(
             (self.width - dialog_width) // 2,
             (self.height - dialog_height) // 2,
@@ -91,21 +82,17 @@ class ExitConfirmation:
             dialog_height
         )
         
-        # Draw dialog background
         pygame.draw.rect(self.screen, (50, 50, 50), dialog_rect, border_radius=10)
         pygame.draw.rect(self.screen, self.WHITE, dialog_rect, 2, border_radius=10)
         
-        # Draw title
         title = self.title_font.render("Exit Game?", True, self.WHITE)
         title_rect = title.get_rect(center=(self.width // 2, dialog_rect.top + dialog_height // 5))
         self.screen.blit(title, title_rect)
         
-        # Draw message
         message = self.info_font.render("Are you sure you want to exit the game?", True, self.LIGHT_GRAY)
         message_rect = message.get_rect(center=(self.width // 2, dialog_rect.top + dialog_height // 2.5))
         self.screen.blit(message, message_rect)
         
-        # Draw instruction
         mode_text = self.info_font.render("Press MODE again to confirm exit", True, self.RED)
         mode_rect = mode_text.get_rect(center=(self.width // 2, dialog_rect.top + dialog_height * 0.6))
         self.screen.blit(mode_text, mode_rect)
@@ -114,26 +101,22 @@ class ExitConfirmation:
         any_rect = any_text.get_rect(center=(self.width // 2, dialog_rect.top + dialog_height * 0.8))
         self.screen.blit(any_text, any_rect)
         
-        # Update display
         pygame.display.flip()
         
-        # Wait for button press
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return True
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_TAB:
-                        return True  # Confirm exit
+                        return True  
                     else:
-                        return False  # Cancel exit
+                        return False  
             
-            # Check GPIO buttons
             button_states = self.get_button_states()
             if button_states['mode']:
-                return True  # Confirm exit
+                return True  
             elif any(value for key, value in button_states.items() if key != 'mode'):
-                return False  # Cancel exit
+                return False  
             
-            # Small delay to prevent CPU hogging
             pygame.time.delay(50)

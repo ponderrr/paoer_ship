@@ -6,7 +6,7 @@ class DisplayMock(DisplayInterface):
         self.fullscreen = fullscreen
         self.width = width
         self.height = height
-        self.cell_size = min(width, height) // 17 if fullscreen else 40  # Adjust for fullscreen
+        self.cell_size = min(width, height) // 17 if fullscreen else 40  
         board_width = self.cell_size * 10
         board_height = self.cell_size * 10
         self.grid_offset_x = (width - board_width) // 2  

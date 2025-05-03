@@ -1,4 +1,3 @@
-# src/cursor.py
 class GameCursor:
     def __init__(self, grid_size=10, cell_size=40):
         self.grid_size = grid_size

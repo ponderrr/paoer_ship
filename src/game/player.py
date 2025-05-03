@@ -4,9 +4,9 @@ class Player:
     def __init__(self, player_id):
         self.player_id = player_id
         self.board = GameBoard()
-        self.shot_history = []  # List of (x, y) shots fired
-        self.hits = 0  # Number of successful hits
-        self.misses = 0  # Number of missed shots
+        self.shot_history = []  
+        self.hits = 0  
+        self.misses = 0  
     
     def place_ship(self, x, y, length, horizontal=True):
         """Places a ship on the player's board."""

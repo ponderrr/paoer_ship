@@ -1,5 +1,3 @@
-# src/hardware/display_interface.py
-
 from abc import ABC, abstractmethod
 
 class DisplayInterface(ABC):

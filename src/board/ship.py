@@ -10,8 +10,8 @@ class Ship:
         """
         self.length = length
         self.orientation = orientation
-        self.position = position  # (row, col)
-        self.hits = [False] * length  # Tracks hits for each segment
+        self.position = position  
+        self.hits = [False] * length  
 
     def is_sunk(self):
         """Returns True if all segments of the ship are hit, otherwise False."""

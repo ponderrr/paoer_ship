@@ -5,7 +5,6 @@ import sys
 from src.utils.constants import SHIP_TYPES
 from src.board.game_board import GameBoard, CellState
 
-# Import from config instead of main
 import config
 
 class ShipPlacementScreen:
@@ -26,20 +25,16 @@ class ShipPlacementScreen:
         self.difficulty = difficulty
         self.sound_manager = sound_manager
         
-        # Screen dimensions
         self.width = screen.get_width()
         self.height = screen.get_height()
         
-        # Grid settings - scale based on screen size and center properly
-        self.cell_size = int(min(self.width, self.height) * 0.03)  # 3% of screen's smaller dimension
+        self.cell_size = int(min(self.width, self.height) * 0.03)  
         board_width = self.cell_size * 10
         board_height = self.cell_size * 10
         
-        # Center grid on screen
         self.grid_offset_x = (self.width - board_width) // 2
         self.grid_offset_y = (self.height - board_height) // 2
         
-        # Colors
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.BLUE = (50, 150, 255)
@@ -49,41 +44,31 @@ class ShipPlacementScreen:
         self.INVALID_COLOR = (255, 100, 100)
         self.HIGHLIGHT_COLOR = (255, 255, 0)
         
-        # Fonts - scale with screen size
         self.title_font_size = max(36, int(self.height * 0.033))
         self.info_font_size = max(24, int(self.height * 0.022))
         self.title_font = pygame.font.Font(None, self.title_font_size)
         self.info_font = pygame.font.Font(None, self.info_font_size)
         
-        # Game boards
         self.player1_board = GameBoard()
         self.player2_board = GameBoard()
         
-        # Current ship being placed
         self.ship_types = list(SHIP_TYPES.items())
         self.current_ship_index = 0
         self.current_ship_horizontal = True
         
-        # Current player (1 or 2)
         self.current_player = 1
         
-        # Cursor position for ship placement
         self.cursor_x = 0
         self.cursor_y = 0
         
-        # Movement delay for cursor
         self.move_delay = 0
         
-        # Placement state
         self.placement_complete = False
-        # Check initial placement validity right away
-        self.placement_valid = True  # Start with True
+        self.placement_valid = True  
         
-        # Confirmation dialog state
         self.showing_confirmation = False
-        self.confirmation_option = 0  # 0 = Continue, 1 = Reset
+        self.confirmation_option = 0  
         
-        # GPIO button press handling
         self.last_button_states = {
             'up': False,
             'down': False,
@@ -91,13 +76,13 @@ class ShipPlacementScreen:
             'right': False,
             'fire': False,
             'mode': False,
-            'rotate': False  # New button for rotation
+            'rotate': False  
         }
     
     def play_invalid_sound(self):
         """Play the invalid action sound"""
         if self.sound_manager:
-            self.sound_manager.play_sound("back")  # Use back sound for invalid actions
+            self.sound_manager.play_sound("back") 
     
     def check_placement_validity(self):
         """Check if the current ship can be placed at the current position"""
@@ -118,7 +103,6 @@ class ShipPlacementScreen:
     
     def can_place_ship(self, board, x, y, length, horizontal):
         """Check if a ship can be placed at the given position"""
-        # Check board limits
         if horizontal:
             if y + length > board.size:
                 return False
@@ -126,7 +110,6 @@ class ShipPlacementScreen:
             if x + length > board.size:
                 return False
                 
-        # Check for overlap with existing ships
         for i in range(length):
             check_x = x
             check_y = y
@@ -145,7 +128,6 @@ class ShipPlacementScreen:
         """Place the current ship on the board"""
         ship_name, ship_length = self.ship_types[self.current_ship_index]
         
-        # Double-check validity before placement
         is_valid = self.can_place_ship(
             board, 
             self.cursor_x, 
@@ -166,40 +148,29 @@ class ShipPlacementScreen:
         )
         
         if success:
-            # Play success sound
             if self.sound_manager:
-                self.sound_manager.play_sound("hit")  # Using hit sound for successful placement
+                self.sound_manager.play_sound("hit")  
                 
             self.current_ship_index += 1
             
-            # Reset position for next ship
             self.cursor_x = 0
             self.cursor_y = 0
             
-            # Check validity for next ship immediately
             self.check_placement_validity()
             
-            # Check if all ships have been placed
             if self.current_ship_index >= len(self.ship_types):
                 if self.ai_mode or self.current_player == 2:
                     self.placement_complete = True
-                    # Play completion sound
                     if self.sound_manager:
-                        self.sound_manager.play_sound("ship_sunk")  # Using ship_sunk for completion
+                        self.sound_manager.play_sound("ship_sunk") 
                 else:
-                    # Show player transition screen before moving to player 2
                     self.show_player_transition_screen()
-                    # Show player 2 setup screen
                     self.show_player_setup_screen(2)
-                    # Move to player 2 setup
                     self.current_player = 2
                     self.current_ship_index = 0
                     self.current_ship_horizontal = True
-                    # Check validity for the first ship of player 2
                     self.check_placement_validity()
         else:
-            # This should rarely happen since we check validity before placement,
-            # but play error sound just in case
             self.play_invalid_sound()
         
         return success
@@ -211,7 +182,7 @@ class ShipPlacementScreen:
         for ship_name, ship_length in self.ship_types:
             placed = False
             attempt_count = 0
-            max_attempts = 100  # Prevent infinite loop
+            max_attempts = 100  
             
             while not placed and attempt_count < max_attempts:
                 x = random.randint(0, 9)
@@ -222,7 +193,6 @@ class ShipPlacementScreen:
                 attempt_count += 1
                 
             if not placed:
-                # If we failed to place a ship after max attempts, reset and try again
                 self.player2_board.reset_board()
                 return self.place_ai_ships()
         
@@ -240,7 +210,6 @@ class ShipPlacementScreen:
         self.cursor_x = 0
         self.cursor_y = 0
         
-        # Check validity for the first ship after reset
         self.check_placement_validity()
     
     def get_button_states(self):
@@ -248,7 +217,6 @@ class ShipPlacementScreen:
         if self.gpio_handler:
             current_states = self.gpio_handler.get_button_states()
         else:
-            # Handle keyboard input as fallback
             keys = pygame.key.get_pressed()
             current_states = {
                 'up': keys[pygame.K_UP],
@@ -257,10 +225,10 @@ class ShipPlacementScreen:
                 'right': keys[pygame.K_RIGHT],
                 'fire': keys[pygame.K_SPACE],
                 'mode': keys[pygame.K_TAB],
-                'rotate': keys[pygame.K_r]  # Use 'r' key for rotation in keyboard mode
+                'rotate': keys[pygame.K_r] 
             }
         
-        # Edge detection (only trigger on button press, not hold)
+        # only trigger on button press, not hold
         button_states = {}
         for key in current_states:
             button_states[key] = current_states[key] and not self.last_button_states[key]
@@ -273,24 +241,21 @@ class ShipPlacementScreen:
         button_states = self.get_button_states()
         current_time = pygame.time.get_ticks()
         
-        # Only process movement if enough time has passed (to prevent too fast movement)
         if current_time > self.move_delay:
-            # Handle confirmation dialog if it's showing
             if self.showing_confirmation:
                 if button_states['up'] or button_states['down']:
-                    self.confirmation_option = 1 - self.confirmation_option  # Toggle between 0 and 1
-                    # Play navigation sound if sound manager exists
+                    self.confirmation_option = 1 - self.confirmation_option  
                     if self.sound_manager:
                         self.sound_manager.play_sound("navigate_up" if button_states['up'] else "navigate_down")
                     self.move_delay = current_time + 200
                 
                 elif button_states['fire']:
-                    if self.confirmation_option == 0:  # Continue
+                    if self.confirmation_option == 0:  
                         self.showing_confirmation = False
                         if self.sound_manager:
                             self.sound_manager.play_sound("accept")
                         return {'action': 'continue_game'}
-                    else:  # Reset
+                    else:  
                         self.showing_confirmation = False
                         if self.sound_manager:
                             self.sound_manager.play_sound("accept")
@@ -298,7 +263,6 @@ class ShipPlacementScreen:
                 
                 return {'action': 'none'}
             
-            # Handle regular ship placement
             if self.current_ship_index >= len(self.ship_types):
                 return {'action': 'none'}
                 
@@ -308,9 +272,8 @@ class ShipPlacementScreen:
             moved = False
             hit_boundary = False
             
-            # Up button pressed
             if button_states['up']:
-                if self.cursor_x > 0:  # Note: cursor_x is row, cursor_y is column
+                if self.cursor_x > 0:  
                     self.cursor_x -= 1
                     moved = True
                     if self.sound_manager:
@@ -318,9 +281,7 @@ class ShipPlacementScreen:
                 else:
                     hit_boundary = True
                     
-            # Down button pressed
             if button_states['down']:
-                # Check if moving down would make the ship go off board
                 max_row = 9
                 if not self.current_ship_horizontal and ship_length > 1:
                     max_row = 10 - ship_length
@@ -333,19 +294,16 @@ class ShipPlacementScreen:
                 else:
                     hit_boundary = True
                 
-            # Left button pressed
             if button_states['left']:
                 if self.cursor_y > 0:
                     self.cursor_y -= 1
                     moved = True
                     if self.sound_manager:
-                        self.sound_manager.play_sound("navigate_up")  # Using up sound for left
+                        self.sound_manager.play_sound("navigate_up")  
                 else:
                     hit_boundary = True
                 
-            # Right button pressed
             if button_states['right']:
-                # Check if moving right would make the ship go off board
                 max_col = 9
                 if self.current_ship_horizontal and ship_length > 1:
                     max_col = 10 - ship_length
@@ -354,102 +312,84 @@ class ShipPlacementScreen:
                     self.cursor_y += 1
                     moved = True
                     if self.sound_manager:
-                        self.sound_manager.play_sound("navigate_down")  # Using down sound for right
+                        self.sound_manager.play_sound("navigate_down") 
                 else:
                     hit_boundary = True
                     
-            # Play boundary hit sound
             if hit_boundary:
                 self.play_invalid_sound()
                 self.move_delay = current_time + 150
                 
-            # Rotate button pressed
             if button_states['rotate']:
-                # Check if rotation would be valid (not off board)
                 if self.current_ship_horizontal:
-                    # Trying to switch to vertical
                     if self.cursor_x + ship_length <= 10:
                         self.current_ship_horizontal = False
                         moved = True
                         if self.sound_manager:
-                            self.sound_manager.play_sound("accept")  # Use accept sound for successful rotation
+                            self.sound_manager.play_sound("accept")  
                     else:
                         hit_boundary = True
                         self.play_invalid_sound()
                 else:
-                    # Trying to switch to horizontal
                     if self.cursor_y + ship_length <= 10:
                         self.current_ship_horizontal = True
                         moved = True
                         if self.sound_manager:
-                            self.sound_manager.play_sound("accept")  # Use accept sound for successful rotation
+                            self.sound_manager.play_sound("accept")  
                     else:
                         hit_boundary = True
                         self.play_invalid_sound()
                 
-            # Check if the current placement is valid after movement
             if moved:
                 was_valid = self.placement_valid
                 self.check_placement_validity()
-                # Play error sound if movement made placement invalid
                 if was_valid and not self.placement_valid:
                     self.play_invalid_sound()
                 self.move_delay = current_time + 150
                 
-            # Fire button pressed (place ship)
             if button_states['fire']:
                 if self.placement_valid:
                     success = self.place_current_ship(board)
                     if success and self.sound_manager:
                         self.sound_manager.play_sound("accept")
                 else:
-                    # Play invalid sound for invalid placement attempt
                     self.play_invalid_sound()
                 
-            # Mode button pressed (reset placement)
             if button_states['mode']:
                 self.showing_confirmation = True
                 self.confirmation_option = 0
                 if self.sound_manager:
-                    self.sound_manager.play_sound("back")  # Use back sound for reset dialog
+                    self.sound_manager.play_sound("back")  
         
         return {'action': 'none'}
     
     def draw_board(self, board, offset_x, offset_y):
         """Draw a game board at the specified position"""
-        # Draw grid labels
         for i in range(10):
-            # Column labels (A-J)
             letter = chr(65 + i)
             text = self.info_font.render(letter, True, self.WHITE)
             self.screen.blit(text, (offset_x + i * self.cell_size + self.cell_size // 3, offset_y - 30))
             
-            # Row labels (1-10)
             number = str(i + 1)
             text = self.info_font.render(number, True, self.WHITE)
             self.screen.blit(text, (offset_x - 30, offset_y + i * self.cell_size + self.cell_size // 3))
         
-        # Draw grid cells
         for y in range(10):
             for x in range(10):
                 cell_x = offset_x + x * self.cell_size
                 cell_y = offset_y + y * self.cell_size
                 
-                # Get cell state
                 cell_state = board.board[y, x]
                 
-                # Determine cell color based on state
                 if cell_state == CellState.EMPTY.value:
-                    color = (50, 50, 50)  # Empty cell
+                    color = (50, 50, 50) 
                 elif cell_state == CellState.SHIP.value:
-                    color = self.SHIP_COLOR  # Ship
+                    color = self.SHIP_COLOR  
                 else:
-                    color = (100, 100, 100)  # Other states (shouldn't occur during placement)
+                    color = (100, 100, 100) 
                 
-                # Draw cell
                 pygame.draw.rect(self.screen, color, (cell_x, cell_y, self.cell_size - 2, self.cell_size - 2))
                 
-        # Draw cursor and ship preview for current player's board
         if board == (self.player1_board if self.current_player == 1 else self.player2_board):
             self.draw_ship_preview(offset_x, offset_y)
     
@@ -470,17 +410,14 @@ class ShipPlacementScreen:
             else:
                 preview_y += i
                 
-            # Skip if outside the board
             if preview_x >= 10 or preview_y >= 10:
                 continue
                 
             cell_x = offset_x + preview_x * self.cell_size
             cell_y = offset_y + preview_y * self.cell_size
             
-            # Draw ship segment
             pygame.draw.rect(self.screen, preview_color, (cell_x, cell_y, self.cell_size - 2, self.cell_size - 2))
             
-        # Draw cursor highlight around the ship's starting position
         cursor_width = self.cell_size + 2
         cursor_height = self.cell_size + 2
 
@@ -504,16 +441,15 @@ class ShipPlacementScreen:
         
         y_offset = 40
         for i, (ship_name, ship_length) in enumerate(self.ship_types):
-            # Determine status
             if i < self.current_ship_index:
-                status = "✓"  # Placed
-                color = (0, 255, 0)  # Green
+                status = "✓"  
+                color = (0, 255, 0)  
             elif i == self.current_ship_index:
-                status = "►"  # Current
-                color = (255, 255, 0)  # Yellow
+                status = "►"  
+                color = (255, 255, 0)  
             else:
-                status = "○"  # Pending
-                color = (200, 200, 200)  # Gray
+                status = "○" 
+                color = (200, 200, 200)  
                 
             text = self.info_font.render(f"{status} {ship_name} ({ship_length})", True, color)
             self.screen.blit(text, (x, y + y_offset))
@@ -528,7 +464,6 @@ class ShipPlacementScreen:
             "Rotate: Change Orientation"
         ]
         
-        # Position controls at bottom of screen
         y_offset = self.height - (len(controls) * 25 + 20)
         for control in controls:
             text = self.info_font.render(control, True, self.LIGHT_GRAY)
@@ -537,7 +472,6 @@ class ShipPlacementScreen:
     
     def draw_confirmation_dialog(self):
         """Draw the reset confirmation dialog"""
-        # Dialog background - centered on screen
         dialog_width = 300
         dialog_height = 200
         dialog_rect = pygame.Rect(
@@ -549,17 +483,14 @@ class ShipPlacementScreen:
         pygame.draw.rect(self.screen, (50, 50, 50), dialog_rect)
         pygame.draw.rect(self.screen, self.WHITE, dialog_rect, 2)
         
-        # Dialog title
         title = self.title_font.render("Reset Placement?", True, self.WHITE)
         title_rect = title.get_rect(center=(self.width // 2, self.height // 2 - 60))
         self.screen.blit(title, title_rect)
         
-        # Dialog message
         message = self.info_font.render("All ships will be removed.", True, self.LIGHT_GRAY)
         message_rect = message.get_rect(center=(self.width // 2, self.height // 2 - 20))
         self.screen.blit(message, message_rect)
         
-        # Dialog options
         continue_color = self.HIGHLIGHT_COLOR if self.confirmation_option == 0 else self.WHITE
         reset_color = self.HIGHLIGHT_COLOR if self.confirmation_option == 1 else self.WHITE
         
@@ -578,27 +509,22 @@ class ShipPlacementScreen:
         Args:
             player_number (int): Player number (1 or 2)
         """
-        # Fill screen with a dark background
         self.screen.fill(config.selected_background_color)
         
-        # Draw title
         title = self.title_font.render(f"PLAYER {player_number} SHIP PLACEMENT", True, self.WHITE)
         title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
         self.screen.blit(title, title_rect)
         
-        # Draw messages
         message1 = self.info_font.render(f"Player {player_number}, get ready to place your ships!", True, self.LIGHT_BLUE)
         message1_rect = message1.get_rect(center=(self.width // 2, self.height // 2 - 30))
         self.screen.blit(message1, message1_rect)
         
-        # Draw ships info
         ships_text = self.info_font.render("You will place the following ships:", True, self.LIGHT_GRAY)
         ships_text_rect = ships_text.get_rect(center=(self.width // 2, self.height // 2 + 10))
         self.screen.blit(ships_text, ships_text_rect)
         
-        # Use proportional spacing based on screen height
         y_offset = self.height // 2 + 40
-        y_spacing = int(self.height * 0.025)  # 2.5% of screen height
+        y_spacing = int(self.height * 0.025)  
         
         for ship_name, ship_length in self.ship_types:
             ship_info = self.info_font.render(f"{ship_name} ({ship_length} spaces)", True, self.LIGHT_GRAY)
@@ -606,15 +532,12 @@ class ShipPlacementScreen:
             self.screen.blit(ship_info, ship_info_rect)
             y_offset += y_spacing
         
-        # Draw continue prompt
         prompt = self.info_font.render("Press FIRE button to start placement", True, self.LIGHT_GRAY)
         prompt_rect = prompt.get_rect(center=(self.width // 2, y_offset + y_spacing))
         self.screen.blit(prompt, prompt_rect)
         
-        # Update display
         pygame.display.flip()
         
-        # Wait for fire button press
         waiting = True
         while waiting:
             for event in pygame.event.get():
@@ -625,12 +548,10 @@ class ShipPlacementScreen:
                     if event.key == pygame.K_SPACE:
                         waiting = False
             
-            # Check GPIO buttons
             button_states = self.get_button_states()
             if button_states['fire']:
                 waiting = False
                 
-            # Small delay to prevent CPU hogging
             pygame.time.delay(50)
     
     def show_player_transition_screen(self):
@@ -638,15 +559,12 @@ class ShipPlacementScreen:
         Show a transition screen between player 1 and player 2 ship placement
         This prevents player 2 from seeing player 1's ship placements
         """
-        # Fill screen with a dark background
         self.screen.fill(config.selected_background_color)
         
-        # Draw title
         title = self.title_font.render("PLAYER 1 SHIPS PLACED", True, self.WHITE)
         title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 40))
         self.screen.blit(title, title_rect)
         
-        # Draw message
         message1 = self.info_font.render("Pass the device to Player 2", True, self.LIGHT_BLUE)
         message1_rect = message1.get_rect(center=(self.width // 2, self.height // 2 - 30))
         self.screen.blit(message1, message1_rect)
@@ -655,15 +573,12 @@ class ShipPlacementScreen:
         message2_rect = message2.get_rect(center=(self.width // 2, self.height // 2 + 10))
         self.screen.blit(message2, message2_rect)
         
-        # Draw continue prompt
         prompt = self.info_font.render("Press FIRE button to continue", True, self.LIGHT_GRAY)
         prompt_rect = prompt.get_rect(center=(self.width // 2, self.height // 2 + 80))
         self.screen.blit(prompt, prompt_rect)
         
-        # Update display
         pygame.display.flip()
         
-        # Wait for fire button press
         waiting = True
         while waiting:
             for event in pygame.event.get():
@@ -674,12 +589,10 @@ class ShipPlacementScreen:
                     if event.key == pygame.K_SPACE:
                         waiting = False
             
-            # Check GPIO buttons
             button_states = self.get_button_states()
             if button_states['fire']:
                 waiting = False
                 
-            # Small delay to prevent CPU hogging
             pygame.time.delay(50)
     
     def run(self):
@@ -691,22 +604,17 @@ class ShipPlacementScreen:
         """
         clock = pygame.time.Clock()
         
-        # Place AI ships if in AI mode
         if self.ai_mode:
             self.place_ai_ships()
         else:
-            # Show player 1 setup screen
             self.show_player_setup_screen(1)
         
-        # Check validity of initial position (0,0) with first ship
         self.check_placement_validity()
         
         running = True
         while running and not self.placement_complete:
-            # Fill background
             self.screen.fill(config.selected_background_color)
             
-            # Draw title based on current state
             if self.ai_mode:
                 title = self.title_font.render("Place Your Ships", True, self.WHITE)
             else:
@@ -716,42 +624,34 @@ class ShipPlacementScreen:
             title_rect = title.get_rect(center=(self.width // 2, 40))
             self.screen.blit(title, title_rect)
             
-            # Display Now Playing information if sound manager exists and music is playing
             if self.sound_manager and self.sound_manager.is_playing and pygame.mixer.music.get_busy():
                 self.sound_manager.draw_now_playing(self.screen, 20, 20, self.info_font, width=200, height=40)
             
-            # Process events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                     pygame.quit()
                     sys.exit()
                 
-                # Handle music end event if sound manager exists
                 if self.sound_manager:
                     self.sound_manager.handle_music_end_event(event)
             
-            # Handle input
             result = self.handle_input()
             if result['action'] == 'continue_game':
                 if self.placement_complete:
                     running = False
             
-            # Draw the game board
             if self.current_player == 1:
                 self.draw_board(self.player1_board, self.grid_offset_x, self.grid_offset_y)
             else:
                 self.draw_board(self.player2_board, self.grid_offset_x, self.grid_offset_y)
             
-            # Draw ship list - position to the right of the board
             ship_list_x = self.grid_offset_x + (self.cell_size * 10) + 50
             ship_list_y = self.grid_offset_y
             self.draw_ship_list(ship_list_x, ship_list_y)
             
-            # Draw controls help
             self.draw_controls_help()
             
-            # Draw current ship info
             if self.current_ship_index < len(self.ship_types):
                 ship_name, ship_length = self.ship_types[self.current_ship_index]
                 orientation = "Horizontal" if self.current_ship_horizontal else "Vertical"
@@ -760,15 +660,12 @@ class ShipPlacementScreen:
                     True, 
                     self.WHITE
                 )
-                # Position above the board
                 ship_info_rect = ship_info.get_rect(center=(self.width // 2, self.grid_offset_y - 30))
                 self.screen.blit(ship_info, ship_info_rect)
             
-            # Draw confirmation dialog if showing
             if self.showing_confirmation:
                 self.draw_confirmation_dialog()
             
-            # Update display
             pygame.display.flip()
             clock.tick(30)
         
