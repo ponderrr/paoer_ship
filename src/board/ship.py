@@ -2,7 +2,7 @@ class Ship:
     def __init__(self, length, orientation, position):
         """
         Initialize a ship with length, orientation, and position.
-        
+
         Args:
             length (int): Length of the ship.
             orientation (str): "horizontal" or "vertical".
@@ -10,8 +10,8 @@ class Ship:
         """
         self.length = length
         self.orientation = orientation
-        self.position = position  
-        self.hits = [False] * length  
+        self.position = position
+        self.hits = [False] * length
 
     def is_sunk(self):
         """Returns True if all segments of the ship are hit, otherwise False."""
@@ -24,7 +24,7 @@ class Ship:
         Args:
             x (int): Row coordinate of the hit.
             y (int): Column coordinate of the hit.
-        
+
         Returns:
             bool: True if the hit is valid (a part of the ship), False otherwise.
         """
@@ -39,5 +39,5 @@ class Ship:
                 if (ship_x + i, ship_y) == (x, y):
                     self.hits[i] = True
                     return True
-        
+
         return False
