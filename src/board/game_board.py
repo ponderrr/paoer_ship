@@ -1,7 +1,8 @@
 import numpy as np
 import random
 from enum import Enum
-from src.board.ship import Ship  
+from src.board.ship import Ship
+
 
 class CellState(Enum):
     EMPTY = 0
@@ -9,11 +10,12 @@ class CellState(Enum):
     HIT = 2
     MISS = 3
 
+
 class GameBoard:
     def __init__(self, size=10):
         self.size = size
         self.board = np.zeros((size, size), dtype=int)
-        self.ships = []  
+        self.ships = []
         self.pao_mode = False
         self.ai_targets = []
 
@@ -25,13 +27,13 @@ class GameBoard:
     def place_ship(self, x, y, length, horizontal=True):
         """
         Places a ship on the board and stores it in self.ships.
-        
+
         Args:
             x (int): Row coordinate.
             y (int): Column coordinate.
             length (int): Length of the ship.
             horizontal (bool): True if ship is horizontal, False if vertical.
-        
+
         Returns:
             bool: True if placement successful, False otherwise.
         """
@@ -59,17 +61,17 @@ class GameBoard:
         orientation = "horizontal" if horizontal else "vertical"
         new_ship = Ship(length, orientation, (x, y))
         self.ships.append(new_ship)
-        
+
         return True
 
     def fire(self, x, y):
         """
         Handles firing at a coordinate.
-        
+
         Args:
             x (int): Row coordinate.
             y (int): Column coordinate.
-        
+
         Returns:
             tuple: (bool hit, bool all_sunk)
         """

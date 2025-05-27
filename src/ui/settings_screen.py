@@ -1,5 +1,6 @@
 import pygame
 import config
+import sys
 
 WHITE = (255, 255, 255)
 BLUE = (50, 150, 255)
