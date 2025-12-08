@@ -75,15 +75,15 @@ Pao'er Ship is a self-contained game service: GPIO/keyboard events feed a determ
 ```mermaid
 flowchart LR
     Player[[Player]]
-    GPIO[GPIO Buttons\n(gpiod)]
-    KB[Keyboard Input]
-    Input[Input Layer\nButtonHandler + GPIOHandler]
-    Engine[Game Core\nBoards + Ships + Turn Logic]
-    AI[AIOpponent\n(probability map + hunting)]
-    UI[UI Screens\nMenus, Placement, Transitions]
-    Audio[SoundManager\nSFX + Music Monitor]
-    Render[Pygame Renderer\n1080p canvas]
-    Assets[Assets\nsounds + images]
+    GPIO["GPIO Buttons<br/>(gpiod)"]
+    KB["Keyboard Input"]
+    Input["Input Layer<br/>ButtonHandler + GPIOHandler"]
+    Engine["Game Core<br/>Boards + Ships + Turn Logic"]
+    AI["AIOpponent<br/>(probability map + hunting)"]
+    UI["UI Screens<br/>Menus, Placement, Transitions"]
+    Audio["SoundManager<br/>SFX + Music Monitor"]
+    Render["Pygame Renderer<br/>1080p canvas"]
+    Assets["Assets<br/>sounds + images"]
 
     Player -->|press| GPIO
     Player -->|press| KB
